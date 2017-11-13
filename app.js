@@ -58,12 +58,36 @@ class Rail extends Rectangle {
     }
 }
 
-
 const RAIL_COLLIDE_RIGHT = 1;
 const RAIL_COLLIDE_LEFT = 2;
 const RAIL_COLLIDE_TOP = 3;
 const RAIL_COLLIDE_BOTTOM = 4;
 
+const POCKET_COLLIDE_ANY = 5;
+
+const BALL_COLLIDE_ANY = 6;
+const BALL_COLLIDE_LEGAL = 7;
+const BALL_COLLIDE_ILLEGAL = 8; //illegal collisions determined in rules class?
+
+class Pocket {
+    constructor(color, locationX, locationY, radius) {
+        this.color = color;
+        this.location = { x: locationX, y: locationY };
+        this.radius = radius;
+    }
+
+    getCentre() {
+        return { x: this.location.x + this.radius, y: this.location.y + this.radius };
+    }
+
+    render(ctx) {
+        ctx.beginPath();
+        ctx.fillStyle = this.color;
+        ctx.arc(this.location.x, this.location.y, this.radius, 0, Math.PI * 2, false);
+        ctx.fill();
+        ctx.closePath();
+    }
+}
 class Ball {
     constructor(color, locationX, locationY, radius, directionX, directionY, speed) {
         this.color = color;
@@ -82,6 +106,15 @@ class Ball {
         }
         this.location.x += this.speed * this.direction.x;
         this.location.y += this.speed * this.direction.y;
+
+        //testing
+        if (this.speed === 0) {
+            this.color = 'red';
+        }
+    }
+
+    getCentre() {
+        return { x: this.location.x + this.radius, y: this.location.y + this.radius };
     }
 
     isColliding(child) {
@@ -91,29 +124,59 @@ class Ball {
                 const leftHandSide = this.location.x - this.radius;
 
                 if (rightHandSide >= child.x && rightHandSide <= child.x + child.width) {
-                    return RAIL_COLLIDE_RIGHT;
+                    return [RAIL_COLLIDE_RIGHT];
                 }
 
                 if (leftHandSide <= child.x + child.width && leftHandSide >= child.x) {
-                    return RAIL_COLLIDE_LEFT;
+                    return [RAIL_COLLIDE_LEFT];
                 }
             } else {
                 const upperSide = this.location.y + this.radius;
                 const lowerSide = this.location.y - this.radius;
 
                 if (upperSide >= child.y && upperSide <= child.y + child.height) {
-                    return RAIL_COLLIDE_BOTTOM;
+                    return [RAIL_COLLIDE_BOTTOM];
                 }
 
                 if (lowerSide <= child.y + child.height && lowerSide >= child.y) {
-                    return RAIL_COLLIDE_TOP;
+                    return [RAIL_COLLIDE_TOP];
                 }
             }
         }
-        return false;
+        else if (child instanceof Pocket) {
+            // @todo store child (the ball) in array of pocketed ball
+            //simple pythagoras
+            //this should work when i work out how to access the array
+            //use mid-points not x,y locations.
+            const centre = this.getCentre();
+            const pocketCentre = child.getCentre();
+            // @todo Optimisation
+            const distance = Math.sqrt(
+                Math.pow((pocketCentre.x-centre.x), 2) + Math.pow((pocketCentre.y-centre.y), 2)
+            );
+
+            if (distance <= child.radius) {
+                return [POCKET_COLLIDE_ANY];
+            }
+
+        }
+
+        else if (child instanceof Ball) {
+
+            const centre = this.getCentre();
+            const otherCentre = child.getCentre();
+
+            const distance = Math.sqrt(
+                Math.pow((otherCentre.x - centre.x), 2) + Math.pow((otherCentre.y - centre.y), 2)
+            );
+
+            if (distance <= child.radius + this.radius) {
+                return [BALL_COLLIDE_ANY, distance];
+            }
+        }
     }
 
-    collisionResponse(child, collisionType) {
+    collisionResponse(child, collisionType, data) {
         if (child instanceof Rail) {
             this.speed *= 0.7;
 
@@ -139,6 +202,49 @@ class Ball {
                     break;
             }
 
+        }
+        else if (child instanceof Pocket) {
+
+            switch (collisionType) {
+                case POCKET_COLLIDE_ANY:
+                    this.speed = 0;
+                    this.direction.x = 0;
+                    this.direction.y = 0;
+
+                    //testing
+                    this.location.x = 20;
+                    this.location.y = 20;
+            }
+        }
+
+        else if (child instanceof Ball) {
+            switch (collisionType) {
+                case BALL_COLLIDE_ANY:
+                    //REF: https://channel9.msdn.com/Series/Sketchbooktutorial/Simple-Collision-Detection-and-Response
+                    const dist = data[0];
+                    const dx = this.getCentre().x - child.getCentre().x;
+                    const dy = this.getCentre().y - child.getCentre().y;
+                    const normalX = dx / dist;
+                    const normalY = dy / dist;
+                    //const midpointX = (this.getCentre().x + child.getCentre().x) / 2;
+                    //const midpointY = (this.getCentre().y + child.getCentre().y) / 2;
+                    const dVector = ((this.direction.x - child.direction.x) * normalX)
+                        + ((this.direction.y - child.direction.y) * normalY);
+                    const dvx = dVector * normalX;
+                    const dvy = dVector * normalY;
+/*
+                    this.x = midpointX - normalX * this.radius;
+                    this.y = midpointY - normalY * this.radius;
+                    child.x = midpointX + normalX * child.radius;
+                    child.y = midpointY + normalY * child.radius;
+*/
+                    //child.speed *= 0.7; //simple simulation of transfer of energy
+
+                    this.direction.x -= dvx;
+                    this.direction.y -= dvy;
+                    child.direction.x += dvx;
+                    child.direction.y += dvy;
+            }
         }
     }
 
@@ -168,14 +274,43 @@ class Game {
         const rail3 = new Rail(0, 0, RAIL_SIZE, height);
         const rail4 = new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height);
 
-        const ball = new Ball('#094ea1', width / 2, height / 2, 14, 1, 1, 5);
+        //color, x, y, radius
+        const POCKET_SIZE = 20;
+        const pocket1 = new Pocket('#2e2e2e', RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
+        const pocket2 = new Pocket('#2e2e2e', (width/2)-RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
+        const pocket3 = new Pocket('#2e2e2e', width-RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
+        const pocket4 = new Pocket('#2e2e2e', RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
+        const pocket5 = new Pocket('#2e2e2e', (width/2)-RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
+        const pocket6 = new Pocket('#2e2e2e', width-RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
+        //middle pockets not aligned to centre?
+        const pockets = [];
+        pockets.push(pocket1, pocket2, pocket3, pocket4, pocket5, pocket6);
+
+        //const ball = new Ball('#094ea1', width / 2, height / 2, 14, 1, 1, 5);
 
         this.addChild(table);
         this.addChild(rail1);
         this.addChild(rail2);
         this.addChild(rail3);
         this.addChild(rail4);
-        this.addChild(ball);
+
+        this.addChild(pocket1);
+        this.addChild(pocket2);
+        this.addChild(pocket3);
+        this.addChild(pocket4);
+        this.addChild(pocket5);
+        this.addChild(pocket6);
+
+        //this.addChild(ball);
+
+        //const ball2 = new Ball('#61380b', (width / 2) - 14, height / 2, 14, 0, 1, 5);
+        const ball2 = new Ball('#094ea1', (width / 2) - 14, height / 2, 14, 0, 0, 5);
+        this.addChild(ball2);
+        const ball3 = new Ball('#094ea1', (width / 2) - 14 + 200, height / 2 + 20, 14, -1, 0, 5);
+        this.addChild(ball3);
+
+        const ball4 = new Ball('#094ea1', (width / 2) - 14, height / 2 - 120, 14, 0, -1, 5);
+        this.addChild(ball4);
     }
 
     addChild(child) {
@@ -207,9 +342,9 @@ class Game {
                     continue;
                 }
                 if (child.isColliding) {
-                    const collisionType = child.isColliding(child2);
+                    const [collisionType, ...data] = child.isColliding(child2) || [];
                     if (collisionType && child.collisionResponse) {
-                        child.collisionResponse(child2, collisionType);
+                        child.collisionResponse(child2, collisionType, data);
                     }
                 }
             }
