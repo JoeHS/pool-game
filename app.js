@@ -304,13 +304,13 @@ class Game {
         //this.addChild(ball);
 
         //const ball2 = new Ball('#61380b', (width / 2) - 14, height / 2, 14, 0, 1, 5);
-        const ball2 = new Ball('#094ea1', (width / 2) - 14, height / 2, 14, 0, 0, 5);
-        this.addChild(ball2);
-        const ball3 = new Ball('#094ea1', (width / 2) - 14 + 200, height / 2 + 20, 14, -1, 0, 5);
-        this.addChild(ball3);
-
-        const ball4 = new Ball('#094ea1', (width / 2) - 14, height / 2 - 120, 14, 0, -1, 5);
-        this.addChild(ball4);
+        // const ball2 = new Ball('#094ea1', (width / 2) - 14, height / 2, 14, 0, 0, 5);
+        // this.addChild(ball2);
+        // const ball3 = new Ball('#094ea1', (width / 2) - 14 + 200, height / 2 + 20, 14, -1, 0, 5);
+        // this.addChild(ball3);
+        //
+        // const ball4 = new Ball('#094ea1', (width / 2) - 14, height / 2 - 120, 14, 0, -1, 5);
+        // this.addChild(ball4);
     }
 
     addChild(child) {
@@ -356,10 +356,29 @@ class Game {
     }
 }
 
+function getRandomRange(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function collisionSandbox(game) {
+    for (let i = 0; i < 10; i++) {
+        let locX = getRandomRange(100, 900);
+        let locY = getRandomRange(100, 400);
+        let dirX = getRandomRange(-1, 1);
+        let dirY = getRandomRange(-1, 1);
+        let speed = getRandomRange(4, 12);
+
+        const ball = new Ball('#ffbf00', locX, locY, 14, dirX, dirY, speed);
+        game.addChild(ball);
+    }
+}
+
 function main() {
     const canvas = new Canvas(document.querySelector('#game'));
     const game = new Game(canvas, 1000, 500);
     game.startTicking();
+
+    collisionSandbox(game);
 }
 
 main();
