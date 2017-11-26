@@ -53,8 +53,9 @@ class Rectangle {
 }
 
 class Rail extends Rectangle {
-    constructor(x, y, width, height) {
+    constructor(x, y, width, height, type) {
         super('#61380b', x, y, width, height);
+        this.type = type;
     }
 }
 
@@ -62,6 +63,10 @@ const RAIL_COLLIDE_RIGHT = 1;
 const RAIL_COLLIDE_LEFT = 2;
 const RAIL_COLLIDE_TOP = 3;
 const RAIL_COLLIDE_BOTTOM = 4;
+const RAIL_TOP = 1;
+const RAIL_BOTTOM = 2;
+const RAIL_LEFT = 3;
+const RAIL_RIGHT = 4;
 
 const POCKET_COLLIDE_ANY = 5;
 
@@ -88,6 +93,7 @@ class Pocket {
         ctx.closePath();
     }
 }
+
 class Ball {
     constructor(color, locationX, locationY, radius, directionX, directionY, speed) {
         this.color = color;
@@ -118,38 +124,14 @@ class Ball {
     }
 
     isColliding(child) {
-        if (child instanceof Rail) {
-            if (child.width < child.height) {
-                const rightHandSide = this.location.x + this.radius;
-                const leftHandSide = this.location.x - this.radius;
-
-                if (rightHandSide >= child.x && rightHandSide <= child.x + child.width) {
-                    return [RAIL_COLLIDE_RIGHT];
-                }
-
-                if (leftHandSide <= child.x + child.width && leftHandSide >= child.x) {
-                    return [RAIL_COLLIDE_LEFT];
-                }
-            } else {
-                const upperSide = this.location.y + this.radius;
-                const lowerSide = this.location.y - this.radius;
-
-                if (upperSide >= child.y && upperSide <= child.y + child.height) {
-                    return [RAIL_COLLIDE_BOTTOM];
-                }
-
-                if (lowerSide <= child.y + child.height && lowerSide >= child.y) {
-                    return [RAIL_COLLIDE_TOP];
-                }
-            }
-        }
-        else if (child instanceof Pocket) {
+        if (child instanceof Pocket) {
             // @todo store child (the ball) in array of pocketed ball
             //simple pythagoras
             //this should work when i work out how to access the array
             //use mid-points not x,y locations.
-            const centre = this.getCentre();
-            const pocketCentre = child.getCentre();
+            //const centre = this.getCentre();
+            const centre = this.location;
+            const pocketCentre = child.location;
             // @todo Optimisation
             const distance = Math.sqrt(
                 Math.pow((pocketCentre.x-centre.x), 2) + Math.pow((pocketCentre.y-centre.y), 2)
@@ -158,13 +140,42 @@ class Ball {
             if (distance <= child.radius) {
                 return [POCKET_COLLIDE_ANY];
             }
-
         }
+        else if (child instanceof Rail) {
+            const rightHandSide = this.location.x + this.radius;
+            const leftHandSide = this.location.x - this.radius;
+            const upperSide = this.location.y + this.radius;
+            const lowerSide = this.location.y - this.radius;
 
+            switch (child.type) {
+                case RAIL_TOP:
+                    if (lowerSide <= child.y + child.height) {
+                        return [RAIL_COLLIDE_TOP];
+                    }
+                    break;
+
+                case RAIL_BOTTOM:
+                    if (upperSide >= child.y) {
+                        return [RAIL_COLLIDE_BOTTOM];
+                    }
+                    break;
+
+                case RAIL_LEFT:
+                    if (leftHandSide <= child.x + child.width) {
+                        return [RAIL_COLLIDE_LEFT];
+                    }
+                    break;
+
+                case RAIL_RIGHT:
+                    if (rightHandSide >= child.x) {
+                        return [RAIL_COLLIDE_RIGHT];
+                    }
+                    break;
+            }
+        }
         else if (child instanceof Ball) {
-
-            const centre = this.getCentre();
-            const otherCentre = child.getCentre();
+            const centre = this.location;
+            const otherCentre = child.location;
 
             const distance = Math.sqrt(
                 Math.pow((otherCentre.x - centre.x), 2) + Math.pow((otherCentre.y - centre.y), 2)
@@ -220,7 +231,8 @@ class Ball {
         else if (child instanceof Ball) {
             switch (collisionType) {
                 case BALL_COLLIDE_ANY:
-                    //REF: https://channel9.msdn.com/Series/Sketchbooktutorial/Simple-Collision-Detection-and-Response
+                    //OLD REF: https://gamedevelopment.tutsplus.com/tutorials/when-worlds-collide-simulating-circle-circle-collisions--gamedev-769
+                    //NEW REF: https://channel9.msdn.com/Series/Sketchbooktutorial/Simple-Collision-Detection-and-Response
                     const dist = data[0];
                     const dx = this.getCentre().x - child.getCentre().x;
                     const dy = this.getCentre().y - child.getCentre().y;
@@ -244,6 +256,14 @@ class Ball {
                     this.direction.y -= dvy;
                     child.direction.x += dvx;
                     child.direction.y += dvy;
+
+                    if (this.speed > child.speed) {
+                        child.speed = this.speed;
+                        this.speed *= 0.7;
+                    } else {
+                        this.speed = child.speed;
+                        child.speed *= 0.7;
+                    }
             }
         }
     }
@@ -269,10 +289,10 @@ class Game {
 
         // @todo Consider how to move this into the Rail class
         const RAIL_SIZE = 20;
-        const rail1 = new Rail(0, 0, width, RAIL_SIZE);
-        const rail2 = new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE);
-        const rail3 = new Rail(0, 0, RAIL_SIZE, height);
-        const rail4 = new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height);
+        const rail1 = new Rail(0, 0, width, RAIL_SIZE, RAIL_TOP);
+        const rail2 = new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM);
+        const rail3 = new Rail(0, 0, RAIL_SIZE, height, RAIL_LEFT);
+        const rail4 = new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height, RAIL_RIGHT);
 
         //color, x, y, radius
         const POCKET_SIZE = 20;
@@ -336,6 +356,10 @@ class Game {
 
     tick() {
         for (let child of this.children) {
+            if (child.update) {
+                child.update();
+            }
+
             // @todo Optimisation
             for (let child2 of this.children) {
                 if (child === child2) {
@@ -347,9 +371,6 @@ class Game {
                         child.collisionResponse(child2, collisionType, data);
                     }
                 }
-            }
-            if (child.update) {
-                child.update();
             }
         }
         this.canvas.render();
