@@ -17,6 +17,18 @@ class Canvas {
         this.size = { width, height };
     }
 
+    attachMouseMoveListener(fn) {
+        this.canvas.addEventListener('mousemove', e => fn(e.offsetX, e.offsetY));
+    }
+
+    attachMouseUpListener(fn) {
+        this.canvas.addEventListener('mouseup', e => fn(e.offsetX, e.offsetY));
+    }
+
+    attachMouseDownListener(fn) {
+        this.canvas.addEventListener('mousedown', e => fn(e.offsetX, e.offsetY));
+    }
+
     clear() {
         this.ctx.clearRect(0, 0, this.size.width, this.size.height);
     }
@@ -28,7 +40,9 @@ class Canvas {
     render() {
         this.clear();
         for (let child of this.children) {
-            child.render(this.ctx);
+            if (child.show !== false) {
+                child.render(this.ctx);
+            }
         }
     }
 }
@@ -112,11 +126,6 @@ class Ball {
         }
         this.location.x += this.speed * this.direction.x;
         this.location.y += this.speed * this.direction.y;
-
-        //testing
-        if (this.speed === 0) {
-            this.color = 'red';
-        }
     }
 
     getCentre() {
@@ -276,10 +285,80 @@ class Ball {
         ctx.closePath();
     }
 }
+class CueBall extends Ball {
+    constructor(...args) {
+        super('white', ...args);
+    }
+}
+
+class Cue {
+    constructor(cueBall) {
+        this.cueBall = cueBall;
+        this.direction = {};
+        this.length = 400;
+        this.show = false;
+    }
+    render(ctx) {
+        ctx.beginPath();
+
+        // REF https://gist.github.com/conorbuck/2606166
+        // REF https://stackoverflow.com/questions/23598547/draw-a-line-from-x-y-with-a-given-angle-and-length
+
+        ctx.moveTo(this.cueBall.location.x, this.cueBall.location.y);
+        ctx.lineTo(
+            this.cueBall.location.x + this.length * this.direction.x,
+            this.cueBall.location.y + this.length * this.direction.y
+        );
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+    }
+
+    mouseMove(x, y) {
+        this.x = x;
+        this.y = y;
+        this.setDirection();
+    }
+
+    mouseDown() {
+        this.show = true;
+    }
+
+    update() {
+        this.setDirection();
+    }
+
+    setDirection() {
+        const theta = Math.atan2(this.y - this.cueBall.location.y, this.x - this.cueBall.location.x);
+        this.direction = {
+            x: Math.cos(theta),
+            y: Math.sin(theta)
+        };
+    }
+
+    mouseUp(x, y) {
+        this.show = false;
+
+        const dist = Math.sqrt(Math.pow((y - this.cueBall.location.y), 2) + Math.pow((x - this.cueBall.location.x), 2));
+        const strength = (dist / this.length) * 30;
+
+        this.x = x;
+        this.y = y;
+        this.setDirection();
+
+        this.cueBall.direction.x = -this.direction.x;
+        this.cueBall.direction.y = -this.direction.y;
+        this.cueBall.speed = strength;
+    }
+
+}
 
 class Game {
     constructor(canvas, width, height) {
         canvas.setSize(width, height);
+        canvas.attachMouseMoveListener(this.mouseMove.bind(this));
+        canvas.attachMouseUpListener(this.mouseUp.bind(this));
+        canvas.attachMouseDownListener(this.mouseDown.bind(this));
 
         this.children = [];
         this.canvas = canvas;
@@ -307,6 +386,8 @@ class Game {
         pockets.push(pocket1, pocket2, pocket3, pocket4, pocket5, pocket6);
 
         //const ball = new Ball('#094ea1', width / 2, height / 2, 14, 1, 1, 5);
+        const cueBall = new CueBall(240, 240, 12, 1, 1, 5);
+        const cue = new Cue(cueBall);
 
         this.addChild(table);
         this.addChild(rail1);
@@ -320,6 +401,9 @@ class Game {
         this.addChild(pocket4);
         this.addChild(pocket5);
         this.addChild(pocket6);
+
+        this.addChild(cueBall);
+        this.addChild(cue);
 
         //this.addChild(ball);
 
@@ -352,6 +436,30 @@ class Game {
 
     stopTicking() {
         this.shouldKeepTicking = false;
+    }
+
+    mouseMove(x, y) {
+        for (let child of this.children) {
+            if (child.mouseMove) {
+                child.mouseMove(x, y);
+            }
+        }
+    }
+
+    mouseDown(x, y) {
+        for (let child of this.children) {
+            if (child.mouseDown) {
+                child.mouseDown(x, y);
+            }
+        }
+    }
+
+    mouseUp(x, y) {
+        for (let child of this.children) {
+            if (child.mouseUp) {
+                child.mouseUp(x, y);
+            }
+        }
     }
 
     tick() {
