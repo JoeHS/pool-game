@@ -47,6 +47,10 @@ class Canvas {
     }
 }
 
+const calculateDistance = (a, b) => Math.sqrt(
+    Math.pow((a.x - b.x), 2) + Math.pow((a.y - b.y), 2)
+);
+
 class Rectangle {
     constructor(color, x, y, width, height) {
         this.color = color;
@@ -139,12 +143,8 @@ class Ball {
             //this should work when i work out how to access the array
             //use mid-points not x,y locations.
             //const centre = this.getCentre();
-            const centre = this.location;
-            const pocketCentre = child.location;
             // @todo Optimisation
-            const distance = Math.sqrt(
-                Math.pow((pocketCentre.x-centre.x), 2) + Math.pow((pocketCentre.y-centre.y), 2)
-            );
+            const distance = calculateDistance(child.location, this.location);
 
             if (distance <= child.radius) {
                 return [POCKET_COLLIDE_ANY];
@@ -186,9 +186,7 @@ class Ball {
             const centre = this.location;
             const otherCentre = child.location;
 
-            const distance = Math.sqrt(
-                Math.pow((otherCentre.x - centre.x), 2) + Math.pow((otherCentre.y - centre.y), 2)
-            );
+            const distance = calculateDistance(otherCentre, centre);
 
             if (distance <= child.radius + this.radius) {
                 return [BALL_COLLIDE_ANY, distance];
@@ -242,9 +240,12 @@ class Ball {
                 case BALL_COLLIDE_ANY:
                     //OLD REF: https://gamedevelopment.tutsplus.com/tutorials/when-worlds-collide-simulating-circle-circle-collisions--gamedev-769
                     //NEW REF: https://channel9.msdn.com/Series/Sketchbooktutorial/Simple-Collision-Detection-and-Response
-                    const dist = data[0];
-                    const dx = this.getCentre().x - child.getCentre().x;
-                    const dy = this.getCentre().y - child.getCentre().y;
+                    this.location.x += this.speed * -this.direction.x;
+                    this.location.y += this.speed * -this.direction.y;
+                    const dist = calculateDistance(this.location, child.location);
+
+                    const dx = this.location.x - child.location.x;
+                    const dy = this.location.y - child.location.y;
                     const normalX = dx / dist;
                     const normalY = dy / dist;
                     //const midpointX = (this.getCentre().x + child.getCentre().x) / 2;
@@ -253,6 +254,10 @@ class Ball {
                         + ((this.direction.y - child.direction.y) * normalY);
                     const dvx = dVector * normalX;
                     const dvy = dVector * normalY;
+
+                    // if (dvx > 1 || dvy > 1) {
+                    //     debugger;
+                    // }
 /*
                     this.x = midpointX - normalX * this.radius;
                     this.y = midpointY - normalY * this.radius;
@@ -266,13 +271,11 @@ class Ball {
                     child.direction.x += dvx;
                     child.direction.y += dvy;
 
-                    if (this.speed > child.speed) {
-                        child.speed = this.speed;
-                        this.speed *= 0.7;
-                    } else {
-                        this.speed = child.speed;
-                        child.speed *= 0.7;
-                    }
+                    const childSpeed = child.speed;
+                    const thisSpeed = this.speed;
+
+                    this.speed = Math.max(childSpeed, thisSpeed * 0.7);
+                    child.speed = Math.max(thisSpeed, childSpeed * 0.7);
             }
         }
     }
@@ -289,6 +292,7 @@ class CueBall extends Ball {
     constructor(...args) {
         super('white', ...args);
     }
+
 }
 
 class Cue {
@@ -339,7 +343,7 @@ class Cue {
     mouseUp(x, y) {
         this.show = false;
 
-        const dist = Math.sqrt(Math.pow((y - this.cueBall.location.y), 2) + Math.pow((x - this.cueBall.location.x), 2));
+        const dist = calculateDistance({ x, y}, this.cueBall.location);
         const strength = (dist / this.length) * 30;
 
         this.x = x;
@@ -374,18 +378,18 @@ class Game {
         const rail4 = new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height, RAIL_RIGHT);
 
         //color, x, y, radius
-        const POCKET_SIZE = 20;
+        const POCKET_SIZE = 24;
         const pocket1 = new Pocket('#2e2e2e', RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
-        const pocket2 = new Pocket('#2e2e2e', (width/2)-RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
+        const pocket2 = new Pocket('#2e2e2e', (width/2), RAIL_SIZE, POCKET_SIZE);
         const pocket3 = new Pocket('#2e2e2e', width-RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
         const pocket4 = new Pocket('#2e2e2e', RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
-        const pocket5 = new Pocket('#2e2e2e', (width/2)-RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
+        const pocket5 = new Pocket('#2e2e2e', (width/2), height-RAIL_SIZE, POCKET_SIZE);
         const pocket6 = new Pocket('#2e2e2e', width-RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
         //middle pockets not aligned to centre?
         const pockets = [];
         pockets.push(pocket1, pocket2, pocket3, pocket4, pocket5, pocket6);
 
-        //const ball = new Ball('#094ea1', width / 2, height / 2, 14, 1, 1, 5);
+        // const ball = new Ball('#094ea1', width / 2, height / 2, 14, 1, 1, 5);
         const cueBall = new CueBall(240, 240, 12, 1, 1, 5);
         const cue = new Cue(cueBall);
 
@@ -467,8 +471,6 @@ class Game {
             if (child.update) {
                 child.update();
             }
-
-            // @todo Optimisation
             for (let child2 of this.children) {
                 if (child === child2) {
                     continue;
@@ -490,12 +492,21 @@ function getRandomRange(min, max) {
 }
 
 function collisionSandbox(game) {
+    const locations = [];
     for (let i = 0; i < 10; i++) {
-        let locX = getRandomRange(100, 900);
-        let locY = getRandomRange(100, 400);
-        let dirX = getRandomRange(-1, 1);
-        let dirY = getRandomRange(-1, 1);
-        let speed = getRandomRange(4, 12);
+        const locX = getRandomRange(100, 900);
+        const locY = getRandomRange(100, 400);
+
+        if (locations.find(loc => calculateDistance(loc, { x: locX, y: locY }) <= 28)) {
+            i--;
+            continue;
+        }
+
+        locations.push({ x: locX, y: locY });
+
+        const dirX = getRandomRange(-1, 1);
+        const dirY = getRandomRange(-1, 1);
+        const speed = getRandomRange(1, 6);
 
         const ball = new Ball('#ffbf00', locX, locY, 14, dirX, dirY, speed);
         game.addChild(ball);
@@ -505,9 +516,10 @@ function collisionSandbox(game) {
 function main() {
     const canvas = new Canvas(document.querySelector('#game'));
     const game = new Game(canvas, 1000, 500);
-    game.startTicking();
 
     collisionSandbox(game);
+
+    game.startTicking();
 }
 
 main();
