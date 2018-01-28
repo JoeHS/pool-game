@@ -1,3 +1,27 @@
+class EventEmitter {
+    constructor() {
+        this.subscriptions = [];
+    }
+
+    subscribe(eventName, handler) {
+        const subscription = [eventName, handler];
+
+        this.subscriptions.push(subscription);
+
+        return () => {
+            this.subscriptions.splice(this.subscriptions.indexOf(subscription), 1);
+        };
+    }
+
+    trigger(eventName, ...data) {
+        for (let [theirEventName, handler] of this.subscriptions) {
+            if (theirEventName === eventName) {
+                handler(...data);
+            }
+        }
+    }
+}
+
 class Canvas {
     constructor(container) {
         const canvas = document.createElement('canvas');
@@ -35,6 +59,10 @@ class Canvas {
 
     addChild(child) {
         this.children.push(child);
+    }
+
+    removeChild(child) {
+        this.children.splice(this.children.indexOf(child), 1);
     }
 
     render() {
@@ -121,6 +149,10 @@ class Ball {
         this.speed = speed;
     }
 
+    setLocation(x, y) {
+        this.location = { x, y };
+    }
+
     update() {
         if (this.speed < 0.2) {
             this.speed = 0;
@@ -194,7 +226,7 @@ class Ball {
         }
     }
 
-    collisionResponse(child, collisionType, data) {
+    collisionResponse(game, child, collisionType, data) {
         if (child instanceof Rail) {
             this.speed *= 0.7;
 
@@ -223,19 +255,27 @@ class Ball {
         }
         else if (child instanceof Pocket) {
 
+            game.emitter.trigger('pocket');
+
             switch (collisionType) {
                 case POCKET_COLLIDE_ANY:
                     this.speed = 0;
                     this.direction.x = 0;
                     this.direction.y = 0;
 
-                    //testing
-                    this.location.x = 20;
-                    this.location.y = 20;
+                    //element has to be removed, not moved off-screen as this registers as a collision with the rails
+                    game.removeChild(this);
+
+                    // //testing
+                    // this.location.x = -200;
+                    // this.location.y = -200;
             }
         }
 
         else if (child instanceof Ball) {
+
+            game.emitter.trigger('collide');
+
             switch (collisionType) {
                 case BALL_COLLIDE_ANY:
                     //OLD REF: https://gamedevelopment.tutsplus.com/tutorials/when-worlds-collide-simulating-circle-circle-collisions--gamedev-769
@@ -293,6 +333,26 @@ class CueBall extends Ball {
         super('white', ...args);
     }
 
+    //override collision response for pockets only
+    collisionResponse(game, child, ...args) {
+        if (child instanceof Pocket) {
+
+            game.emitter.trigger('pocket');
+            game.emitter.trigger('foul');
+            game.emitter.trigger('breakEnd');
+
+            //reset cue ball if pocketed
+            this.location.x = 250;
+            this.location.y = 250;
+
+            this.direction.x = 0;
+            this.direction.y = 0;
+            this.speed = 0;
+
+        } else {
+            return super.collisionResponse(game, child, ...args);
+        }
+    }
 }
 
 class Cue {
@@ -359,71 +419,54 @@ class Cue {
 
 class Game {
     constructor(canvas, width, height) {
-        canvas.setSize(width, height);
-        canvas.attachMouseMoveListener(this.mouseMove.bind(this));
-        canvas.attachMouseUpListener(this.mouseUp.bind(this));
-        canvas.attachMouseDownListener(this.mouseDown.bind(this));
+        this.width = width;
+        this.height = height;
 
         this.children = [];
         this.canvas = canvas;
         this.loop = this.loop.bind(this);
 
+        canvas.setSize(width, height);
+        canvas.attachMouseMoveListener(this.mouseMove.bind(this));
+        canvas.attachMouseUpListener(this.mouseUp.bind(this));
+        canvas.attachMouseDownListener(this.mouseDown.bind(this));
+
         const table = new Rectangle('#30a109', 0, 0, width, height);
+        this.addChild(table);
 
         // @todo Consider how to move this into the Rail class
         const RAIL_SIZE = 20;
-        const rail1 = new Rail(0, 0, width, RAIL_SIZE, RAIL_TOP);
-        const rail2 = new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM);
-        const rail3 = new Rail(0, 0, RAIL_SIZE, height, RAIL_LEFT);
-        const rail4 = new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height, RAIL_RIGHT);
+        this.addChild(new Rail(0, 0, width, RAIL_SIZE, RAIL_TOP));
+        this.addChild(new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM));
+        this.addChild(new Rail(0, 0, RAIL_SIZE, height, RAIL_LEFT));
+        this.addChild(new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height, RAIL_RIGHT));
 
-        //color, x, y, radius
         const POCKET_SIZE = 24;
-        const pocket1 = new Pocket('#2e2e2e', RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
-        const pocket2 = new Pocket('#2e2e2e', (width/2), RAIL_SIZE, POCKET_SIZE);
-        const pocket3 = new Pocket('#2e2e2e', width-RAIL_SIZE, RAIL_SIZE, POCKET_SIZE);
-        const pocket4 = new Pocket('#2e2e2e', RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
-        const pocket5 = new Pocket('#2e2e2e', (width/2), height-RAIL_SIZE, POCKET_SIZE);
-        const pocket6 = new Pocket('#2e2e2e', width-RAIL_SIZE, height-RAIL_SIZE, POCKET_SIZE);
-        //middle pockets not aligned to centre?
-        const pockets = [];
-        pockets.push(pocket1, pocket2, pocket3, pocket4, pocket5, pocket6);
+        this.addChild(new Pocket('#2e2e2e', RAIL_SIZE, RAIL_SIZE, POCKET_SIZE));
+        this.addChild(new Pocket('#2e2e2e', (width / 2), RAIL_SIZE, POCKET_SIZE));
+        this.addChild(new Pocket('#2e2e2e', width - RAIL_SIZE, RAIL_SIZE, POCKET_SIZE));
+        this.addChild(new Pocket('#2e2e2e', RAIL_SIZE, height - RAIL_SIZE, POCKET_SIZE));
+        this.addChild(new Pocket('#2e2e2e', (width / 2), height - RAIL_SIZE, POCKET_SIZE));
+        this.addChild(new Pocket('#2e2e2e', width - RAIL_SIZE, height - RAIL_SIZE, POCKET_SIZE));
 
-        // const ball = new Ball('#094ea1', width / 2, height / 2, 14, 1, 1, 5);
-        const cueBall = new CueBall(240, 240, 12, 1, 1, 5);
-        const cue = new Cue(cueBall);
+        this.emitter = new EventEmitter();
+        this.rules = new Pool(this, this.emitter);
 
-        this.addChild(table);
-        this.addChild(rail1);
-        this.addChild(rail2);
-        this.addChild(rail3);
-        this.addChild(rail4);
-
-        this.addChild(pocket1);
-        this.addChild(pocket2);
-        this.addChild(pocket3);
-        this.addChild(pocket4);
-        this.addChild(pocket5);
-        this.addChild(pocket6);
-
+        const cueBall = new CueBall(width*0.25, height*0.5, 12, 0, 0, 0);
         this.addChild(cueBall);
-        this.addChild(cue);
-
-        //this.addChild(ball);
-
-        //const ball2 = new Ball('#61380b', (width / 2) - 14, height / 2, 14, 0, 1, 5);
-        // const ball2 = new Ball('#094ea1', (width / 2) - 14, height / 2, 14, 0, 0, 5);
-        // this.addChild(ball2);
-        // const ball3 = new Ball('#094ea1', (width / 2) - 14 + 200, height / 2 + 20, 14, -1, 0, 5);
-        // this.addChild(ball3);
-        //
-        // const ball4 = new Ball('#094ea1', (width / 2) - 14, height / 2 - 120, 14, 0, -1, 5);
-        // this.addChild(ball4);
+        this.addChild(new Cue(cueBall));
     }
 
+    //add to end of array
     addChild(child) {
         this.canvas.addChild(child);
         this.children.push(child);
+    }
+
+    //remove specific element
+    removeChild(child) {
+        this.canvas.removeChild(child);
+        this.children.splice(this.children.indexOf(child), 1);
     }
 
     startTicking() {
@@ -478,7 +521,7 @@ class Game {
                 if (child.isColliding) {
                     const [collisionType, ...data] = child.isColliding(child2) || [];
                     if (collisionType && child.collisionResponse) {
-                        child.collisionResponse(child2, collisionType, data);
+                        child.collisionResponse(this, child2, collisionType, data);
                     }
                 }
             }
@@ -517,7 +560,7 @@ function main() {
     const canvas = new Canvas(document.querySelector('#game'));
     const game = new Game(canvas, 1000, 500);
 
-    collisionSandbox(game);
+    // collisionSandbox(game);
 
     game.startTicking();
 }
