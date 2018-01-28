@@ -33,28 +33,60 @@ class Canvas {
         this.canvas = canvas;
         this.ctx = ctx;
         this.children = [];
+        this.translation = { x: 0, y: 0 };
+        this.size = { width: 0, height: 0 };
+
+        window.addEventListener('resize', () => this.syncToBrowser());
+        this.syncToBrowser();
+    }
+
+    syncToBrowser() {
+        this.canvasSize = {
+            width: document.body.offsetWidth,
+            height: document.body.offsetHeight
+        };
+
+        this.canvas.width = this.canvasSize.width;
+        this.canvas.height = this.canvasSize.height;
+
+        this.translate((this.canvasSize.width - this.size.width) / 2, (this.canvasSize.height - this.size.height) / 2);
     }
 
     setSize(width, height) {
-        this.canvas.width = width;
-        this.canvas.height = height;
         this.size = { width, height };
+        this.syncToBrowser();
+    }
+
+    translate(x, y) {
+        this.translation = { x, y };
+        this.ctx.translate(x, y);
+        this.render();
+    }
+
+    attach(eventName, handler) {
+        this.canvas.addEventListener(
+            eventName,
+            e => handler(e.offsetX - this.translation.x, e.offsetY - this.translation.y)
+        );
     }
 
     attachMouseMoveListener(fn) {
-        this.canvas.addEventListener('mousemove', e => fn(e.offsetX, e.offsetY));
+        this.attach('mousemove', fn);
     }
 
     attachMouseUpListener(fn) {
-        this.canvas.addEventListener('mouseup', e => fn(e.offsetX, e.offsetY));
+        this.attach('mouseup', fn);
     }
 
     attachMouseDownListener(fn) {
-        this.canvas.addEventListener('mousedown', e => fn(e.offsetX, e.offsetY));
+        this.attach('mousedown', fn);
     }
 
     clear() {
-        this.ctx.clearRect(0, 0, this.size.width, this.size.height);
+        this.ctx.clearRect(
+            -this.translation.x, -this.translation.y,
+            this.canvasSize.width + this.translation.x, this.canvasSize.height + this.translation.y
+        );
     }
 
     addChild(child) {
@@ -435,7 +467,7 @@ class Game {
         this.addChild(table);
 
         // @todo Consider how to move this into the Rail class
-        const RAIL_SIZE = 20;
+        const RAIL_SIZE = 28;
         this.addChild(new Rail(0, 0, width, RAIL_SIZE, RAIL_TOP));
         this.addChild(new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM));
         this.addChild(new Rail(0, 0, RAIL_SIZE, height, RAIL_LEFT));
