@@ -287,7 +287,7 @@ class Ball {
         }
         else if (child instanceof Pocket) {
 
-            game.emitter.trigger('pocket');
+            game.emitter.trigger('pocket', this);
 
             switch (collisionType) {
                 case POCKET_COLLIDE_ANY:
@@ -296,7 +296,7 @@ class Ball {
                     this.direction.y = 0;
 
                     //element has to be removed, not moved off-screen as this registers as a collision with the rails
-                    game.removeChild(this);
+                    this.onPocket(game);
 
                     // //testing
                     // this.location.x = -200;
@@ -352,6 +352,10 @@ class Ball {
         }
     }
 
+    onPocket() {
+
+    }
+
     render(ctx) {
         ctx.beginPath();
         ctx.fillStyle = this.color;
@@ -360,31 +364,23 @@ class Ball {
         ctx.closePath();
     }
 }
+
+class GameBall extends Ball {
+    onPocket(game) {
+        game.removeChild(this);
+    }
+}
+
 class CueBall extends Ball {
     constructor(...args) {
         super('white', ...args);
     }
 
-    //override collision response for pockets only
-    collisionResponse(game, child, ...args) {
-        if (child instanceof Pocket) {
-
-            game.emitter.trigger('pocket');
-            game.emitter.trigger('foul');
-            game.emitter.trigger('breakEnd');
-
-            //reset cue ball if pocketed
-            this.location.x = 250;
-            this.location.y = 250;
-
-            this.direction.x = 0;
-            this.direction.y = 0;
-            this.speed = 0;
-
-        } else {
-            return super.collisionResponse(game, child, ...args);
-        }
+    onPocket() {
+        this.location.x = 250;
+        this.location.y = 250;
     }
+
 }
 
 class Cue {
@@ -482,11 +478,14 @@ class Game {
         this.addChild(new Pocket('#2e2e2e', width - RAIL_SIZE, height - RAIL_SIZE, POCKET_SIZE));
 
         this.emitter = new EventEmitter();
-        this.rules = new Pool(this, this.emitter);
 
         const cueBall = new CueBall(width*0.25, height*0.5, 12, 0, 0, 0);
         this.addChild(cueBall);
         this.addChild(new Cue(cueBall));
+
+        this.cueBall = cueBall;
+
+        this.rules = new Pool(this, this.emitter);
     }
 
     //add to end of array
@@ -559,6 +558,7 @@ class Game {
             }
         }
         this.canvas.render();
+        this.rules.tick();
     }
 }
 
