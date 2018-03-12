@@ -91,9 +91,11 @@ class Pool {
 
         events.subscribe('turnStarted', () => {
             console.log('turnStarted');
+            game.cue.toggleActive();
         });
         events.subscribe('turnEnded', () => {
             this.changePlayer();
+            game.cue.toggleActive();
             console.log('turnEnded');
         });
 

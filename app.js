@@ -186,18 +186,14 @@ class Ball {
     }
 
     update() {
-        if (this.speed < 0.2) {
+        if (this.speed < 0.3) {
             this.speed = 0;
         }
         else {
-            this.speed *= 0.993;
+            this.speed *= 0.985;
         }
         this.location.x += this.speed * this.direction.x;
         this.location.y += this.speed * this.direction.y;
-    }
-
-    getCentre() {
-        return { x: this.location.x + this.radius, y: this.location.y + this.radius };
     }
 
     isColliding(child) {
@@ -389,7 +385,17 @@ class Cue {
         this.direction = {};
         this.length = 400;
         this.show = false;
+        this.active = true;
     }
+
+    toggleActive() {
+        this.active = !this.active;
+
+        if (!this.active) {
+            this.show = false;
+        }
+    }
+
     render(ctx) {
         ctx.beginPath();
 
@@ -413,7 +419,9 @@ class Cue {
     }
 
     mouseDown() {
-        this.show = true;
+        if (this.active) {
+            this.show = true;
+        }
     }
 
     update() {
@@ -429,18 +437,20 @@ class Cue {
     }
 
     mouseUp(x, y) {
-        this.show = false;
+        if (this.active) {
+            this.show = false;
 
-        const dist = calculateDistance({ x, y}, this.cueBall.location);
-        const strength = (dist / this.length) * 30;
+            const dist = calculateDistance({x, y}, this.cueBall.location);
+            const strength = (dist / this.length) * 30;
 
-        this.x = x;
-        this.y = y;
-        this.setDirection();
+            this.x = x;
+            this.y = y;
+            this.setDirection();
 
-        this.cueBall.direction.x = -this.direction.x;
-        this.cueBall.direction.y = -this.direction.y;
-        this.cueBall.speed = strength;
+            this.cueBall.direction.x = -this.direction.x;
+            this.cueBall.direction.y = -this.direction.y;
+            this.cueBall.speed = strength;
+        }
     }
 
 }
@@ -479,11 +489,11 @@ class Game {
 
         this.emitter = new EventEmitter();
 
-        const cueBall = new CueBall(width*0.25, height*0.5, 12, 0, 0, 0);
-        this.addChild(cueBall);
-        this.addChild(new Cue(cueBall));
+        this.cueBall = new CueBall(width*0.25, height*0.5, 12, 0, 0, 0);
+        this.cue = new Cue(this.cueBall);
 
-        this.cueBall = cueBall;
+        this.addChild(this.cueBall);
+        this.addChild(this.cue);
 
         this.rules = new Pool(this, this.emitter);
     }
