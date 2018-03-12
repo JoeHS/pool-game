@@ -13,6 +13,18 @@ class PoolPlayer {
 
 }
 
+class ActivePlayer {
+    constructor(pool) {
+        this.pool = pool;
+    }
+    render (ctx) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'white';
+        ctx.font = '48px serif';
+        ctx.fillText(`Player ${this.pool.currentPlayerIndex + 1}`, 500, -50);
+    }
+
+}
 
 class Pool {
     constructor(game, events) {
@@ -34,6 +46,7 @@ class Pool {
         this.blackBall = new GameBall('#000000', 0, 0, 14, 0, 0, 0); //black
         game.addChild(this.blackBall);
 
+        game.addChild(new ActivePlayer(this));
 
         //defines starting positions of balls
         const CentrePosition = {x: game.width * 0.75, y: game.height * 0.5};
