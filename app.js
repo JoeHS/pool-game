@@ -388,12 +388,13 @@ class Cue {
         this.active = true;
     }
 
-    toggleActive() {
-        this.active = !this.active;
+    setActive() {
+        this.active = true;
+    }
 
-        if (!this.active) {
-            this.show = false;
-        }
+    setInactive() {
+        this.active = false;
+        this.show = false;
     }
 
     render(ctx) {

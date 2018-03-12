@@ -109,7 +109,7 @@ class Pool {
             this.hasHitBall = false;
             this.shotsLeft -= 1;
 
-            game.cue.toggleActive();
+            game.cue.setInactive();
         });
         events.subscribe('shotLegal', () => {
             console.log('shotLegal');
@@ -125,7 +125,7 @@ class Pool {
 
         events.subscribe('shotEnded', () => {
             console.log('shotEnded');
-            game.cue.toggleActive();
+            game.cue.setActive();
         });
 
         this.balls = [...balls, this.blackBall, game.cueBall];
@@ -191,12 +191,11 @@ class Pool {
 
         if (!isMoving) {
             if (this.hasFouled) {
-                this.events.trigger('shotFouled');
                 this.hasFouled = false;
+                this.events.trigger('shotFouled');
             } else if (this.shotStarted) {
                 this.events.trigger('shotLegal');
             }
-
             this.shotStarted = false;
         } else if (!this.shotStarted) {
             this.shotStarted = true;
