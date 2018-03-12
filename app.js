@@ -302,7 +302,7 @@ class Ball {
 
         else if (child instanceof Ball) {
 
-            game.emitter.trigger('collide');
+            game.emitter.trigger('collide', this, child);
 
             switch (collisionType) {
                 case BALL_COLLIDE_ANY:

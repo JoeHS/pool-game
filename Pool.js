@@ -31,9 +31,11 @@ class Pool {
         const colors = ['#b30000', '#ffcc00'];
         const balls = [];
 
+        this.game = game;
         this.players = [new PoolPlayer(), new PoolPlayer()];
         this.currentPlayerIndex = 0;
         this.events = events;
+        this.shotsLeft = 1;
 
         for (let i = 0; i < 14; i++) {
             const ball = new GameBall(colors[i % 2], 0, 0, 14, 0, 0, 0);
@@ -81,29 +83,61 @@ class Pool {
             console.log('breakEnd');
         });
         events.subscribe('foul', () => {
+            this.hasFouled = true;
             console.log('foul');
+        });
+        events.subscribe('shotFouled', () => {
+            console.log('shotFouled');
+
+            this.changePlayer();
+            this.shotsLeft = 2;
+
+            events.trigger('shotEnded');
+        });
+
+        events.subscribe('score', () => {
+            this.shotsLeft = 1;
         });
 
         events.subscribe('pocket', this.onPocket.bind(this));
-        events.subscribe('collide', () => {
-            console.log('collide');
+
+        events.subscribe('collide', this.onCollision.bind(this));
+
+        events.subscribe('shotStarted', () => {
+            console.log('shotStarted');
+
+            this.hasHitBall = false;
+            this.shotsLeft -= 1;
+
+            game.cue.toggleActive();
+        });
+        events.subscribe('shotLegal', () => {
+            console.log('shotLegal');
+
+            if (!this.hasHitBall) {
+                events.trigger('foul');
+            } else if (this.shotsLeft <= 0) {
+                this.changePlayer();
+            }
+
+            events.trigger('shotEnded');
         });
 
-        events.subscribe('turnStarted', () => {
-            console.log('turnStarted');
+        events.subscribe('shotEnded', () => {
+            console.log('shotEnded');
             game.cue.toggleActive();
-        });
-        events.subscribe('turnEnded', () => {
-            this.changePlayer();
-            game.cue.toggleActive();
-            console.log('turnEnded');
         });
 
         this.balls = [...balls, this.blackBall, game.cueBall];
     }
 
     changePlayer() {
-        this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+        this.currentPlayerIndex = this.getNextPlayerIndex();
+        this.shotsLeft = 1;
+    }
+
+    getNextPlayerIndex() {
+        return (this.currentPlayerIndex + 1) % this.players.length;
     }
 
     onPocket(ball) {
@@ -112,34 +146,61 @@ class Pool {
         } else if (ball === this.blackBall) {
             //game over (check players scores first)
         } else {
-            const player = this.players[this.currentPlayerIndex];
-            const other = this.players[(this.currentPlayerIndex + 1) % this.players.length];
-
-            if ((player.hasColor() && !player.ownsThisBall(ball)) || other.ownsThisBall(ball)) {
+            if (!this.currentPlayerOwnsBall(ball)) {
                 this.events.trigger('foul');
             } else {
+                const player = this.players[this.currentPlayerIndex];
                 if (!player.hasColor()) {
                     player.setBallOwnership(ball);
                 }
 
                 if (player.ownsThisBall(ball)) {
+                    this.events.trigger('score');
                     console.log('score');
-                    // increment score
                 }
             }
-
         }
+    }
 
+    currentPlayerOwnsBall(ball) {
+        const player = this.players[this.currentPlayerIndex];
+        const other = this.players[this.getNextPlayerIndex()];
+
+        return (!player.hasColor() || player.ownsThisBall(ball)) && !other.ownsThisBall(ball)
+    }
+
+    onCollision(ballA, ballB) {
+        if (ballA === this.game.cueBall) {
+            this.onCueBallCollision(ballB);
+        } else if (ballB === this.game.cueBall) {
+            this.onCueBallCollision(ballA);
+        }
+    }
+
+    onCueBallCollision(ball) {
+        if (!this.hasHitBall) {
+            if (!this.currentPlayerOwnsBall(ball)) {
+                this.events.trigger('foul');
+            }
+        }
+        this.hasHitBall = true;
     }
 
     tick() {
         let isMoving = this.balls.some(ball => ball.speed);
-        if (this.turnStarted && !isMoving) {
-            this.turnStarted = false;
-            this.events.trigger('turnEnded');
-        } else if (!this.turnStarted && isMoving) {
-            this.turnStarted = true;
-            this.events.trigger('turnStarted');
+
+        if (!isMoving) {
+            if (this.hasFouled) {
+                this.events.trigger('shotFouled');
+                this.hasFouled = false;
+            } else if (this.shotStarted) {
+                this.events.trigger('shotLegal');
+            }
+
+            this.shotStarted = false;
+        } else if (!this.shotStarted) {
+            this.shotStarted = true;
+            this.events.trigger('shotStarted');
         }
     }
 
