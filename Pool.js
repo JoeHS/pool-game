@@ -1,16 +1,66 @@
+const PLAYER_ONE = 1;
+const PLAYER_TWO = 2;
+const BALL_COLORS = ['#b30000', '#ffcc00'];
+
 class PoolPlayer {
+    constructor(game, playerNumber) {
+        this.game = game;
+        this.playerNumber = playerNumber;
+    }
+
     ownsThisBall(ball) {
         return ball.color === this.color;
     }
 
-    setBallOwnership(ball) {
-        this.color = ball.color;
+    setColor(color) {
+        this.color = color;
     }
 
     hasColor() {
         return this.color !== undefined;
     }
 
+    render(ctx) {
+        if (this.playerNumber === PLAYER_ONE) {
+            this.drawPlayerBar(ctx, 0);
+            this.drawPlayerName(ctx, 16, 'left');
+            this.drawScore(ctx, 14, 1);
+        } else {
+            this.drawPlayerBar(ctx, 994);
+            this.drawPlayerName(ctx, 984, 'right');
+            this.drawScore(ctx, 986, -1);
+        }
+    }
+
+    drawScore(ctx, beginX, direction) {
+        const score = this.game.getPocketedBallsOfColor(this.color).length;
+        for (let i = 0; i < score; i++){
+            ctx.beginPath();
+            ctx.fillStyle = this.color;
+            ctx.arc(beginX + (direction * (10 + (i * 28))), -56, 10, 0, Math.PI * 2, false);
+            ctx.fill();
+            ctx.closePath();
+        }
+    }
+
+    drawPlayerName(ctx, x, alignment) {
+        const player = `Player ${this.playerNumber}`;
+
+        ctx.beginPath();
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Helvetica';
+        ctx.textAlign = alignment;
+        ctx.fillText(player, x, -80);
+        ctx.closePath();
+    }
+
+    drawPlayerBar(ctx, x) {
+        ctx.beginPath();
+        ctx.fillStyle = this.color || 'white';
+        ctx.rect(x, -100, 6, 60);
+        ctx.fill();
+        ctx.closePath();
+    }
 }
 
 class ActivePlayer {
@@ -18,27 +68,32 @@ class ActivePlayer {
         this.pool = pool;
     }
     render (ctx) {
+        ctx.beginPath();
         ctx.textAlign = 'center';
         ctx.fillStyle = 'white';
-        ctx.font = '48px serif';
+        ctx.font = '48px Helvetica';
         ctx.fillText(`Player ${this.pool.currentPlayerIndex + 1}`, 500, -50);
+        ctx.closePath();
     }
 
 }
 
 class Pool {
     constructor(game, events) {
-        const colors = ['#b30000', '#ffcc00'];
         const balls = [];
 
         this.game = game;
-        this.players = [new PoolPlayer(), new PoolPlayer()];
+        this.players = [new PoolPlayer(this, PLAYER_ONE), new PoolPlayer(this, PLAYER_TWO)];
         this.currentPlayerIndex = 0;
         this.events = events;
         this.shotsLeft = 1;
 
+        for (let player of this.players) {
+            game.addChild(player);
+        }
+
         for (let i = 0; i < 14; i++) {
-            const ball = new GameBall(colors[i % 2], 0, 0, 14, 0, 0, 0);
+            const ball = new GameBall(BALL_COLORS[i % 2], 0, 0, 14, 0, 0, 0);
             balls.push(ball);
             game.addChild(ball);
         }
@@ -128,6 +183,10 @@ class Pool {
             game.cue.setActive();
         });
 
+        events.subscribe('gameWon', winningPlayer => {
+            console.log('Game Over', winningPlayer);
+        });
+
         this.balls = [...balls, this.blackBall, game.cueBall];
     }
 
@@ -141,17 +200,28 @@ class Pool {
     }
 
     onPocket(ball) {
+        const player = this.players[this.currentPlayerIndex];
+        const nextPlayer = this.players[this.getNextPlayerIndex()];
+
         if (ball instanceof CueBall) {
             this.events.trigger('foul');
         } else if (ball === this.blackBall) {
-            //game over (check players scores first)
+            //game over
+
+            if (this.getPocketedBallsOfColor(player.color).length === 7) {
+                this.events.trigger('gameWon', player);
+            } else {
+                this.events.trigger('gameWon', nextPlayer);
+            }
+
         } else {
+            ball.pocketed = true;
             if (!this.currentPlayerOwnsBall(ball)) {
                 this.events.trigger('foul');
             } else {
-                const player = this.players[this.currentPlayerIndex];
                 if (!player.hasColor()) {
-                    player.setBallOwnership(ball);
+                    player.setColor(ball.color);
+                    nextPlayer.setColor(BALL_COLORS.find(c => c !== ball.color));
                 }
 
                 if (player.ownsThisBall(ball)) {
@@ -162,11 +232,14 @@ class Pool {
         }
     }
 
+    getPocketedBallsOfColor(color) {
+        return this.balls.filter(ball => ball.pocketed && ball.color === color);
+    }
+
     currentPlayerOwnsBall(ball) {
         const player = this.players[this.currentPlayerIndex];
-        const other = this.players[this.getNextPlayerIndex()];
 
-        return (!player.hasColor() || player.ownsThisBall(ball)) && !other.ownsThisBall(ball)
+        return !player.hasColor() || player.ownsThisBall(ball);
     }
 
     onCollision(ballA, ballB) {
@@ -178,10 +251,8 @@ class Pool {
     }
 
     onCueBallCollision(ball) {
-        if (!this.hasHitBall) {
-            if (!this.currentPlayerOwnsBall(ball)) {
-                this.events.trigger('foul');
-            }
+        if (!this.hasHitBall && (ball === this.blackBall || !this.currentPlayerOwnsBall(ball))) {
+            this.events.trigger('foul');
         }
         this.hasHitBall = true;
     }

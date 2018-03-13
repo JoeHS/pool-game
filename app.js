@@ -159,10 +159,6 @@ class Pocket {
         this.radius = radius;
     }
 
-    getCentre() {
-        return { x: this.location.x + this.radius, y: this.location.y + this.radius };
-    }
-
     render(ctx) {
         ctx.beginPath();
         ctx.fillStyle = this.color;
@@ -474,13 +470,13 @@ class Game {
         this.addChild(table);
 
         // @todo Consider how to move this into the Rail class
-        const RAIL_SIZE = 28;
+        const RAIL_SIZE = 36;
         this.addChild(new Rail(0, 0, width, RAIL_SIZE, RAIL_TOP));
         this.addChild(new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM));
         this.addChild(new Rail(0, 0, RAIL_SIZE, height, RAIL_LEFT));
         this.addChild(new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height, RAIL_RIGHT));
 
-        const POCKET_SIZE = 24;
+        const POCKET_SIZE = 32;
         this.addChild(new Pocket('#2e2e2e', RAIL_SIZE, RAIL_SIZE, POCKET_SIZE));
         this.addChild(new Pocket('#2e2e2e', (width / 2), RAIL_SIZE, POCKET_SIZE));
         this.addChild(new Pocket('#2e2e2e', width - RAIL_SIZE, RAIL_SIZE, POCKET_SIZE));
