@@ -30,6 +30,7 @@ class PoolPlayer {
             this.drawPlayerName(ctx, 984, 'right');
             this.drawScore(ctx, 986, -1);
         }
+
     }
 
     drawScore(ctx, beginX, direction) {
@@ -68,14 +69,25 @@ class ActivePlayer {
         this.pool = pool;
     }
     render (ctx) {
-        ctx.beginPath();
+        if (this.pool.gameEnded) {
+            return this.renderWinningPlayer(ctx);
+        } else {
+            ctx.beginPath();
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'white';
+            ctx.font = '48px Helvetica';
+            ctx.fillText(`Player ${this.pool.currentPlayerIndex + 1}`, 500, -50);
+            ctx.closePath();
+        }
+    }
+
+    renderWinningPlayer(ctx) {
         ctx.textAlign = 'center';
         ctx.fillStyle = 'white';
         ctx.font = '48px Helvetica';
-        ctx.fillText(`Player ${this.pool.currentPlayerIndex + 1}`, 500, -50);
+        ctx.fillText(`Game Over! – Player ${this.pool.winningPlayer.playerNumber} wins!`, 500, -50);
         ctx.closePath();
     }
-
 }
 
 class Pool {
@@ -183,9 +195,7 @@ class Pool {
             game.cue.setActive();
         });
 
-        events.subscribe('gameWon', winningPlayer => {
-            console.log('Game Over', winningPlayer);
-        });
+        events.subscribe('gameWon', this.gameOver.bind(this));
 
         this.balls = [...balls, this.blackBall, game.cueBall];
     }
@@ -208,7 +218,7 @@ class Pool {
         } else if (ball === this.blackBall) {
             //game over
 
-            if (this.getPocketedBallsOfColor(player.color).length === 7) {
+            if (this.hasPottedAllOwnBalls()) {
                 this.events.trigger('gameWon', player);
             } else {
                 this.events.trigger('gameWon', nextPlayer);
@@ -232,6 +242,10 @@ class Pool {
         }
     }
 
+    hasPottedAllOwnBalls() {
+        return this.getPocketedBallsOfColor(this.players[this.currentPlayerIndex].color).length === 7;
+    }
+
     getPocketedBallsOfColor(color) {
         return this.balls.filter(ball => ball.pocketed && ball.color === color);
     }
@@ -251,17 +265,22 @@ class Pool {
     }
 
     onCueBallCollision(ball) {
-        if (!this.hasHitBall && (ball === this.blackBall || !this.currentPlayerOwnsBall(ball))) {
+        if (!this.hasHitBall && !this.currentPlayerOwnsBall(ball) && (ball !== this.blackBall || !this.hasPottedAllOwnBalls())) {
             this.events.trigger('foul');
         }
+
         this.hasHitBall = true;
     }
 
     tick() {
         let isMoving = this.balls.some(ball => ball.speed);
 
+        if (this.gameEnded) {
+            return;
+        }
+
         if (!isMoving) {
-            if (this.hasFouled) {
+            if (this.hasFouled || (this.shotStarted && !this.hasHitBall)) {
                 this.hasFouled = false;
                 this.events.trigger('shotFouled');
             } else if (this.shotStarted) {
@@ -272,6 +291,13 @@ class Pool {
             this.shotStarted = true;
             this.events.trigger('shotStarted');
         }
+    }
+
+    gameOver(winningPlayer)  {
+        this.game.cue.setInactive();
+        this.gameEnded = true;
+        this.winningPlayer = winningPlayer;
+        console.log('Game Over', winningPlayer);
     }
 
 }
