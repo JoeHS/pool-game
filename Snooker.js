@@ -1,3 +1,5 @@
+import { GameBall, CueBall } from './app';
+
 const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
 const COLORS = {
@@ -103,7 +105,7 @@ class ActivePlayer {
 
 }
 
-class Snooker {
+export default class Snooker {
     constructor(game, events) {
 
         this.game = game;

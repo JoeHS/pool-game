@@ -1,3 +1,5 @@
+import { GameBall, CueBall } from './app';
+
 const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
 const BALL_COLORS = ['#b30000', '#ffcc00'];
@@ -90,7 +92,7 @@ class ActivePlayer {
     }
 }
 
-class Pool {
+export default class Pool {
     constructor(game, events) {
         const balls = [];
 

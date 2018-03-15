@@ -1,3 +1,6 @@
+import Pool from './Pool';
+import Snooker from './Snooker';
+
 class EventEmitter {
     constructor() {
         this.subscriptions = [];
@@ -152,8 +155,6 @@ const RAIL_SIZE = 36;
 const POCKET_COLLIDE_ANY = 5;
 
 const BALL_COLLIDE_ANY = 6;
-const BALL_COLLIDE_LEGAL = 7;
-const BALL_COLLIDE_ILLEGAL = 8; //illegal collisions determined in rules class?
 
 class Pocket {
     constructor(color, locationX, locationY, radius) {
@@ -362,13 +363,13 @@ class Ball {
     }
 }
 
-class GameBall extends Ball {
+export class GameBall extends Ball {
     onPocket(game) {
         game.removeChild(this);
     }
 }
 
-class CueBall extends Ball {
+export class CueBall extends Ball {
     constructor(...args) {
         super('white', ...args);
         this.toBePlaced = true;
@@ -495,7 +496,7 @@ class Cue {
 }
 
 class Game {
-    constructor(canvas, width, height) {
+    constructor(canvas, width, height, GameType) {
         this.width = width;
         this.height = height;
 
@@ -530,7 +531,7 @@ class Game {
         this.cueBall = new CueBall(width*0.25, height*0.5, 12, 0, 0, 0);
         this.cue = new Cue(this.cueBall);
 
-        this.rules = new Pool(this, this.emitter);
+        this.rules = new GameType(this, this.emitter);
 
         this.addChild(this.cue);
         this.addChild(this.cueBall);
@@ -636,13 +637,24 @@ function collisionSandbox(game) {
     }
 }
 
-function main() {
-    const canvas = new Canvas(document.querySelector('#game'));
-    const game = new Game(canvas, 1000, 500);
+const modes = {
+    pool: Pool,
+    snooker: Snooker
+};
 
-    // collisionSandbox(game);
+const canvas = new Canvas(document.querySelector('#game'));
+const list = Array.from(document.querySelectorAll('#menu li'));
 
-    game.startTicking();
+for (let item of list) {
+    item.addEventListener('click', e => {
+        e.preventDefault();
+        const mode = modes[e.currentTarget.dataset.option];
+        e.currentTarget.parentNode.parentNode.removeChild(e.currentTarget.parentNode);
+
+        const game = new Game(canvas, 1000, 500, mode);
+
+        // collisionSandbox(game);
+
+        game.startTicking();
+    })
 }
-
-main();
