@@ -184,6 +184,8 @@ class Ball {
     update() {
         if (this.speed < 0.3) {
             this.speed = 0;
+            this.direction.x = 0;
+            this.direction.y = 0;
         }
         else {
             this.speed *= 0.985;
