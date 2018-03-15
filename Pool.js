@@ -226,7 +226,7 @@ class Pool {
 
         } else {
             ball.pocketed = true;
-            if (!this.currentPlayerOwnsBall(ball)) {
+            if (!this.currentPlayerOwnsBall(ball) && (ball !== this.blackBall || !this.hasPottedAllOwnBalls())) {
                 this.events.trigger('foul');
             } else {
                 if (!player.hasColor()) {
