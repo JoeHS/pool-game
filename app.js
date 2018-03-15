@@ -111,6 +111,8 @@ const calculateDistance = (a, b) => Math.sqrt(
     Math.pow((a.x - b.x), 2) + Math.pow((a.y - b.y), 2)
 );
 
+const CUE_MAX_X = 250;
+
 class Rectangle {
     constructor(color, x, y, width, height) {
         this.color = color;
@@ -145,6 +147,7 @@ const RAIL_TOP = 1;
 const RAIL_BOTTOM = 2;
 const RAIL_LEFT = 3;
 const RAIL_RIGHT = 4;
+const RAIL_SIZE = 36;
 
 const POCKET_COLLIDE_ANY = 5;
 
@@ -368,11 +371,35 @@ class GameBall extends Ball {
 class CueBall extends Ball {
     constructor(...args) {
         super('white', ...args);
+        this.toBePlaced = true;
     }
 
     onPocket() {
-        this.location.x = 250;
-        this.location.y = 250;
+        this.toBePlaced = true;
+        this.mouseMove(...this.cursorPosition);
+    }
+
+    mouseMove(x, y) {
+        this.cursorPosition = [x, y];
+        if (this.toBePlaced) {
+            this.previousLocation = { ...this.location };
+            this.location.x = Math.max(0, Math.min(CUE_MAX_X, x));
+            this.location.y = Math.max(0, y);
+        }
+    }
+
+    mouseUp() {
+        setTimeout(() => {
+            this.toBePlaced = false;
+        });
+    }
+
+    collisionResponse(...args) {
+        if (!this.toBePlaced) {
+            return super.collisionResponse(...args);
+        } else {
+            this.location = this.previousLocation;
+        }
     }
 
 }
@@ -406,7 +433,7 @@ class Cue {
             this.cueBall.location.x + this.length * this.direction.x,
             this.cueBall.location.y + this.length * this.direction.y
         );
-        ctx.strokeStyle = 'white';
+        ctx.strokeStyle = this.color;
         ctx.lineWidth = 8;
         ctx.stroke();
     }
@@ -415,12 +442,23 @@ class Cue {
         this.x = x;
         this.y = y;
         this.setDirection();
+        this.calculateColor(x, y);
     }
 
-    mouseDown() {
-        if (this.active) {
+    calculateColor(x, y) {
+        const brightness = 255 - Math.floor(255 * Math.min(1, this.calculateStrength(x, y)));
+        this.color = `rgb(255, ${brightness}, ${brightness})`;
+    }
+
+    mouseDown(x, y) {
+        if (this.isActive()) {
             this.show = true;
+            this.calculateColor(x, y);
         }
+    }
+
+    isActive() {
+        return this.active && !this.cueBall.toBePlaced;
     }
 
     update() {
@@ -436,11 +474,10 @@ class Cue {
     }
 
     mouseUp(x, y) {
-        if (this.active) {
+        if (this.isActive() && this.show) {
             this.show = false;
 
-            const dist = calculateDistance({x, y}, this.cueBall.location);
-            const strength = (dist / this.length) * 30;
+            const strength = this.calculateStrength(x, y) * 30;
 
             this.x = x;
             this.y = y;
@@ -452,6 +489,9 @@ class Cue {
         }
     }
 
+    calculateStrength(x, y) {
+        return calculateDistance({x, y}, this.cueBall.location) / this.length;
+    }
 }
 
 class Game {
@@ -470,9 +510,8 @@ class Game {
 
         const table = new Rectangle('#30a109', 0, 0, width, height);
         this.addChild(table);
+        this.addChild(new Rectangle('white', CUE_MAX_X, RAIL_SIZE, 2, height - (RAIL_SIZE * 2)));
 
-        // @todo Consider how to move this into the Rail class
-        const RAIL_SIZE = 36;
         this.addChild(new Rail(0, 0, width, RAIL_SIZE, RAIL_TOP));
         this.addChild(new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM));
         this.addChild(new Rail(0, 0, RAIL_SIZE, height, RAIL_LEFT));
@@ -491,10 +530,10 @@ class Game {
         this.cueBall = new CueBall(width*0.25, height*0.5, 12, 0, 0, 0);
         this.cue = new Cue(this.cueBall);
 
-        this.addChild(this.cueBall);
-        this.addChild(this.cue);
-
         this.rules = new Pool(this, this.emitter);
+
+        this.addChild(this.cue);
+        this.addChild(this.cueBall);
     }
 
     //add to end of array
