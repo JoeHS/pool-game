@@ -1,5 +1,6 @@
 import Pool from './Pool';
 import Snooker from './Snooker';
+import Sandbox from './Sandbox';
 
 class EventEmitter {
     constructor() {
@@ -607,14 +608,16 @@ class Game {
             }
         }
         this.canvas.render();
-        this.rules.tick();
+        if (typeof this.rules.tick === 'function') {
+            this.rules.tick();
+        }
     }
 }
 
 function getRandomRange(min, max) {
     return Math.random() * (max - min) + min;
 }
-
+/*
 function collisionSandbox(game) {
     const locations = [];
     for (let i = 0; i < 10; i++) {
@@ -636,10 +639,11 @@ function collisionSandbox(game) {
         game.addChild(ball);
     }
 }
-
+*/
 const modes = {
     pool: Pool,
-    snooker: Snooker
+    snooker: Snooker,
+    sandbox: Sandbox
 };
 
 const canvas = new Canvas(document.querySelector('#game'));
