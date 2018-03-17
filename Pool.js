@@ -4,24 +4,26 @@ const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
 const BALL_COLORS = ['#b30000', '#ffcc00'];
 
+//stores properties of players
 class PoolPlayer {
     constructor(game, playerNumber) {
         this.game = game;
         this.playerNumber = playerNumber;
     }
-
+    //getter function for ball ownership
     ownsThisBall(ball) {
         return ball.color === this.color;
     }
-
+    //setter function, as above
     setColor(color) {
         this.color = color;
     }
-
+    //undefined if no colour set, allows for setting both player's colours at once
     hasColor() {
         return this.color !== undefined;
     }
 
+    //draws relevant features for player 1 & 2
     render(ctx) {
         if (this.playerNumber === PLAYER_ONE) {
             this.drawPlayerBar(ctx, 0);
@@ -35,6 +37,7 @@ class PoolPlayer {
 
     }
 
+    //draws graphic of pocketed balls
     drawScore(ctx, beginX, direction) {
         const score = this.game.getPocketedBallsOfColor(this.color).length;
         for (let i = 0; i < score; i++){
@@ -46,6 +49,7 @@ class PoolPlayer {
         }
     }
 
+    //draws player names in corners
     drawPlayerName(ctx, x, alignment) {
         const player = `Player ${this.playerNumber}`;
 
@@ -56,7 +60,7 @@ class PoolPlayer {
         ctx.fillText(player, x, -80);
         ctx.closePath();
     }
-
+    //draws corner graphic, indicates ball assignment
     drawPlayerBar(ctx, x) {
         ctx.beginPath();
         ctx.fillStyle = this.color || 'white';
@@ -66,23 +70,27 @@ class PoolPlayer {
     }
 }
 
+//allows rendering of current player, plus shots remaining
 class ActivePlayer {
-    constructor(pool) {
+    constructor(pool, game) {
         this.pool = pool;
+        this.game = game;
     }
     render (ctx) {
+        //end state case
         if (this.pool.gameEnded) {
             return this.renderWinningPlayer(ctx);
         } else {
+            //normal game-play display
             ctx.beginPath();
             ctx.textAlign = 'center';
             ctx.fillStyle = 'white';
             ctx.font = '48px Helvetica';
-            ctx.fillText(`Player ${this.pool.currentPlayerIndex + 1}`, 500, -50);
+            ctx.fillText(`Player ${this.pool.currentPlayerIndex + 1} – ${this.pool.shotsLeft} shot(s) remaining`, 500, -50);
             ctx.closePath();
         }
     }
-
+    //draws end state case, displays winning player
     renderWinningPlayer(ctx) {
         ctx.textAlign = 'center';
         ctx.fillStyle = 'white';
@@ -91,8 +99,9 @@ class ActivePlayer {
         ctx.closePath();
     }
 }
-
+//rules for Pool game
 export default class Pool {
+    //set up init game state
     constructor(game, events) {
         const balls = [];
 
@@ -105,19 +114,19 @@ export default class Pool {
         for (let player of this.players) {
             game.addChild(player);
         }
-
+        //creates ball objects
         for (let i = 0; i < 14; i++) {
             const ball = new GameBall(BALL_COLORS[i % 2], 0, 0, 14, 0, 0, 0);
             balls.push(ball);
             game.addChild(ball);
         }
-
+        //randomise array for random layout
         balls.sort(() => Math.random() - 0.5);
-
+        //creates black ball
         this.blackBall = new GameBall('#000000', 0, 0, 14, 0, 0, 0); //black
         game.addChild(this.blackBall);
 
-        game.addChild(new ActivePlayer(this));
+        game.addChild(new ActivePlayer(this, game));
 
         //defines starting positions of balls
         const CentrePosition = {x: game.width * 0.75, y: game.height * 0.5};
@@ -144,7 +153,7 @@ export default class Pool {
         balls[12].setLocation(CentrePosition.x + buffer * 2, CentrePosition.y - buffer);
         balls[13].setLocation(CentrePosition.x + buffer * 2, CentrePosition.y - buffer * 2);
 
-        //events
+        //event subscriptions
         events.subscribe('breakStart', () => {
             console.log('breakStart');
         });
@@ -201,16 +210,16 @@ export default class Pool {
 
         this.balls = [...balls, this.blackBall, game.cueBall];
     }
-
+    //setter
     changePlayer() {
         this.currentPlayerIndex = this.getNextPlayerIndex();
         this.shotsLeft = 1;
     }
-
+    //getter
     getNextPlayerIndex() {
         return (this.currentPlayerIndex + 1) % this.players.length;
     }
-
+    //pocketing event logic
     onPocket(ball) {
         const player = this.players[this.currentPlayerIndex];
         const nextPlayer = this.players[this.getNextPlayerIndex()];
@@ -218,8 +227,7 @@ export default class Pool {
         if (ball instanceof CueBall) {
             this.events.trigger('foul');
         } else if (ball === this.blackBall) {
-            //game over
-
+            //game ends, either a win – or loss for current player, if they foul
             if (this.hasPottedAllOwnBalls()) {
                 this.events.trigger('gameWon', player);
             } else {
@@ -227,15 +235,18 @@ export default class Pool {
             }
 
         } else {
+            //record this object as pocketed
             ball.pocketed = true;
+            //if this is a foul
             if (!this.currentPlayerOwnsBall(ball) && (ball !== this.blackBall || !this.hasPottedAllOwnBalls())) {
                 this.events.trigger('foul');
             } else {
                 if (!player.hasColor()) {
+                    //if unset, sets colours on first pocket of the game
                     player.setColor(ball.color);
                     nextPlayer.setColor(BALL_COLORS.find(c => c !== ball.color));
                 }
-
+                //finally if legal pot
                 if (player.ownsThisBall(ball)) {
                     this.events.trigger('score');
                     console.log('score');
@@ -243,21 +254,21 @@ export default class Pool {
             }
         }
     }
-
+    //used to determine legality of potting black
     hasPottedAllOwnBalls() {
         return this.getPocketedBallsOfColor(this.players[this.currentPlayerIndex].color).length === 7;
     }
-
+    //gets pocketed balls of colour x
     getPocketedBallsOfColor(color) {
         return this.balls.filter(ball => ball.pocketed && ball.color === color);
     }
-
+    //true when player owns ball object passed as argument
     currentPlayerOwnsBall(ball) {
         const player = this.players[this.currentPlayerIndex];
 
         return !player.hasColor() || player.ownsThisBall(ball);
     }
-
+    //for all collisions, filters to only collisions with the cue ball
     onCollision(ballA, ballB) {
         if (ballA === this.game.cueBall) {
             this.onCueBallCollision(ballB);
@@ -265,7 +276,7 @@ export default class Pool {
             this.onCueBallCollision(ballA);
         }
     }
-
+    //on cue ball collisions, trigger foul event IFF first contact, and is an illegal contact.
     onCueBallCollision(ball) {
         if (!this.hasHitBall && !this.currentPlayerOwnsBall(ball) && (ball !== this.blackBall || !this.hasPottedAllOwnBalls())) {
             this.events.trigger('foul');
@@ -273,15 +284,16 @@ export default class Pool {
 
         this.hasHitBall = true;
     }
-
+    //controls game clock
     tick() {
         let isMoving = this.balls.some(ball => ball.speed);
 
         if (this.gameEnded) {
             return;
         }
-
+        //when no object is moving...
         if (!isMoving) {
+            //trigger either legal or foul shot events based on flags set during motion
             if (this.hasFouled || (this.shotStarted && !this.hasHitBall)) {
                 this.hasFouled = false;
                 this.events.trigger('shotFouled');
@@ -290,11 +302,12 @@ export default class Pool {
             }
             this.shotStarted = false;
         } else if (!this.shotStarted) {
+            //restart shot cycle once movement begins and shot has not yet been recorded as started
             this.shotStarted = true;
             this.events.trigger('shotStarted');
         }
     }
-
+    //disable input in end state
     gameOver(winningPlayer)  {
         this.game.cue.setInactive();
         this.gameEnded = true;
