@@ -153,6 +153,23 @@ export default class Pool {
         balls[12].setLocation(CentrePosition.x + buffer * 2, CentrePosition.y - buffer);
         balls[13].setLocation(CentrePosition.x + buffer * 2, CentrePosition.y - buffer * 2);
 
+        /***/
+        //gets game to near end state (one random colour, plus the black ball remain)
+        for (let i = 0; i < 13; i++) {
+            balls[i].setLocation(0, 0);
+        }
+        //set player colours manually
+        const player = this.players[this.currentPlayerIndex];
+        const nextPlayer = this.players[this.getNextPlayerIndex()];
+        player.setColor(balls[13].color);
+        nextPlayer.setColor(BALL_COLORS.find(c => c !== balls[13].color));
+        //overrides foul handling
+        this.shotsLeft = 1;
+        //lines up balls for potting
+        balls[13].setLocation(920, 80);
+        this.blackBall.setLocation(920, 420);
+        /***/
+
         //event subscriptions
         events.subscribe('breakStart', () => {
             console.log('breakStart');

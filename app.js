@@ -1,6 +1,7 @@
 import Pool from './Pool';
 import Snooker from './Snooker';
 import Sandbox from './Sandbox';
+import DemoPool from './DemoPool';
 
 class EventEmitter {
     constructor() {
@@ -643,7 +644,8 @@ function collisionSandbox(game) {
 const modes = {
     pool: Pool,
     snooker: Snooker,
-    sandbox: Sandbox
+    sandbox: Sandbox,
+    demopool: DemoPool
 };
 
 const canvas = new Canvas(document.querySelector('#game'));
