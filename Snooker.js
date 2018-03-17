@@ -42,31 +42,59 @@ class SnookerPlayer {
     drawPlayerBar(ctx, x) {
         ctx.beginPath();
         if (this.game.players[this.game.currentPlayerIndex] !== this) {
+            ctx.beginPath();
             ctx.fillStyle = 'white';
             ctx.rect(x, -100, 6, 60);
             ctx.fill();
+            ctx.closePath();
         } else {
-            if (this.game.onColors) {
+            if (this.game.onColors) {/*
+                ctx.beginPath();
                 ctx.fillStyle = '#ffcc00';
                 ctx.rect(x, -100, 6, 10);
+                ctx.fill();
                 ctx.fillStyle = '#006600';
                 ctx.rect(x, -90, 6, 10);
+                ctx.fill();
                 ctx.fillStyle = '#663300';
                 ctx.rect(x, -80, 6, 10);
+                ctx.fill();
                 ctx.fillStyle = '#0066ff';
                 ctx.rect(x, -70, 6, 10);
+                ctx.fill();
                 ctx.fillStyle = '#ff99ff';
                 ctx.rect(x, -60, 6, 10);
+                ctx.fill();
                 ctx.fillStyle = '#2e2e2e';
                 ctx.rect(x, -50, 6, 10);
                 ctx.fill();
+                ctx.closePath();*/
+
+                for (let i = -50; i >=-100; i -=10) {
+                    ctx.beginPath();
+                    let color = null;
+                    switch(i) {
+                        case -50: color = '#2e2e2e'; break;
+                        case -60: color = '#ff99ff'; break;
+                        case -70: color = '#0066ff'; break;
+                        case -80: color = '#663300'; break;
+                        case -90: color = '#006600'; break;
+                        case -100: color = '#ffcc00'; break;
+                        default: color = 'white';
+                    }
+                    ctx.fillStyle = color;
+                    ctx.rect(x, i, 6, 10);
+                    ctx.fill();
+                    ctx.closePath();
+                }
             } else {
+                ctx.beginPath();
                 ctx.fillStyle = '#b30000';
                 ctx.rect(x, -100, 6, 60);
                 ctx.fill();
+                ctx.closePath();
             }
         }
-        ctx.closePath();
     }
 
     drawPlayerName(ctx, x, alignment) {
