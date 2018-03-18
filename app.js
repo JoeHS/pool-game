@@ -1,3 +1,5 @@
+import { checkIntersection } from 'line-intersect';
+
 import Pool from './Pool';
 import Snooker from './Snooker';
 import Sandbox from './Sandbox';
@@ -114,7 +116,7 @@ class Canvas {
     }
 }
 
-const calculateDistance = (a, b) => Math.sqrt(
+export const calculateDistance = (a, b) => Math.sqrt(
     Math.pow((a.x - b.x), 2) + Math.pow((a.y - b.y), 2)
 );
 
@@ -160,6 +162,8 @@ const POCKET_COLLIDE_ANY = 5;
 
 const BALL_COLLIDE_ANY = 6;
 
+const CUE_COLLIDE = 7;
+
 class Pocket {
     constructor(color, locationX, locationY, radius) {
         this.color = color;
@@ -204,11 +208,6 @@ class Ball {
 
     isColliding(child) {
         if (child instanceof Pocket) {
-            // @todo store child (the ball) in array of pocketed ball
-            //simple pythagoras
-            //this should work when i work out how to access the array
-            //use mid-points not x,y locations.
-            //const centre = this.getCentre();
             // @todo Optimisation
             const distance = calculateDistance(child.location, this.location);
 
@@ -291,19 +290,12 @@ class Ball {
 
             game.emitter.trigger('pocket', this);
 
-            switch (collisionType) {
-                case POCKET_COLLIDE_ANY:
-                    this.speed = 0;
-                    this.direction.x = 0;
-                    this.direction.y = 0;
+            this.speed = 0;
+            this.direction.x = 0;
+            this.direction.y = 0;
 
-                    //element has to be removed, not moved off-screen as this registers as a collision with the rails
-                    this.onPocket(game);
-
-                    // //testing
-                    // this.location.x = -200;
-                    // this.location.y = -200;
-            }
+            //element has to be removed, not moved off-screen as this registers as a collision with the rails
+            this.onPocket(game);
         }
 
         else if (child instanceof Ball) {
@@ -322,23 +314,10 @@ class Ball {
                     const dy = this.location.y - child.location.y;
                     const normalX = dx / dist;
                     const normalY = dy / dist;
-                    //const midpointX = (this.getCentre().x + child.getCentre().x) / 2;
-                    //const midpointY = (this.getCentre().y + child.getCentre().y) / 2;
                     const dVector = ((this.direction.x - child.direction.x) * normalX)
                         + ((this.direction.y - child.direction.y) * normalY);
                     const dvx = dVector * normalX;
                     const dvy = dVector * normalY;
-
-                    // if (dvx > 1 || dvy > 1) {
-                    //     debugger;
-                    // }
-/*
-                    this.x = midpointX - normalX * this.radius;
-                    this.y = midpointY - normalY * this.radius;
-                    child.x = midpointX + normalX * child.radius;
-                    child.y = midpointY + normalY * child.radius;
-*/
-                    //child.speed *= 0.7; //simple simulation of transfer of energy
 
                     this.direction.x -= dvx;
                     this.direction.y -= dvy;
@@ -348,6 +327,7 @@ class Ball {
                     const childSpeed = child.speed;
                     const thisSpeed = this.speed;
 
+                    //simple simulation of transfer of energy
                     this.speed = Math.max(childSpeed, thisSpeed * 0.7);
                     child.speed = Math.max(thisSpeed, childSpeed * 0.7);
             }
@@ -410,12 +390,13 @@ export class CueBall extends Ball {
 }
 
 class Cue {
-    constructor(cueBall) {
+    constructor(cueBall, game) {
         this.cueBall = cueBall;
         this.direction = {};
         this.length = 400;
         this.show = false;
         this.active = true;
+        this.game = game;
     }
 
     setActive() {
@@ -432,7 +413,7 @@ class Cue {
 
         // REF https://gist.github.com/conorbuck/2606166
         // REF https://stackoverflow.com/questions/23598547/draw-a-line-from-x-y-with-a-given-angle-and-length
-
+        //cue itself
         ctx.moveTo(this.cueBall.location.x, this.cueBall.location.y);
         ctx.lineTo(
             this.cueBall.location.x + this.length * this.direction.x,
@@ -441,6 +422,9 @@ class Cue {
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 8;
         ctx.stroke();
+        ctx.closePath();
+
+        this.renderGuide(ctx);
     }
 
     mouseMove(x, y) {
@@ -497,6 +481,64 @@ class Cue {
     calculateStrength(x, y) {
         return calculateDistance({x, y}, this.cueBall.location) / this.length;
     }
+    //draws aiming guide
+    renderGuide(ctx) {
+        const [collision] = this.game.getCollisions(this) || [];
+        const destination = collision ? collision[1] : this.getGuideDestination();
+
+        ctx.beginPath();
+        ctx.moveTo(this.cueBall.location.x, this.cueBall.location.y);
+        ctx.lineTo(
+            destination.x,
+            destination.y
+        );
+        ctx.setLineDash([2,3]);
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
+        ctx.setLineDash([]);
+
+    }
+
+    isColliding(child) {
+        if (this.show) {
+            const destination = this.getGuideDestination();
+            const location = { ...this.cueBall.location };
+
+
+            if (child instanceof Rail) {
+                const line = [location.x, location.y, destination.x, destination.y];
+                let collisionLine;
+                switch (child.type) {
+                    case RAIL_TOP:
+                        collisionLine = [child.x, child.y + child.height, child.x + child.width, child.y + child.height];
+                        break;
+                    case RAIL_BOTTOM:
+                        collisionLine = [child.x, child.y, child.x + child.width, child.y];
+                        break;
+                    case RAIL_LEFT:
+                        collisionLine = [child.x + child.width, child.y, child.x + child.width, child.y + child.height];
+                        break;
+                    case RAIL_RIGHT:
+                        collisionLine = [child.x, child.y, child.x, child.y + child.height];
+                        break;
+                }
+                const intersection = checkIntersection(...line, ...collisionLine);
+                if (intersection.type === 'intersecting') {
+                    return [CUE_COLLIDE, intersection.point];
+                }
+            }
+
+        }
+    }
+
+    getGuideDestination() {
+        return {
+            x: this.cueBall.location.x + this.length * 3 * -this.direction.x,
+            y: this.cueBall.location.y + this.length * 3 * -this.direction.y
+        };
+    }
 }
 
 class Game {
@@ -518,9 +560,9 @@ class Game {
         this.addChild(new Rectangle('white', CUE_MAX_X, RAIL_SIZE, 2, height - (RAIL_SIZE * 2)));
 
         this.addChild(new Rail(0, 0, width, RAIL_SIZE, RAIL_TOP));
-        this.addChild(new Rail(0, height-RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM));
+        this.addChild(new Rail(0, height - RAIL_SIZE, width, RAIL_SIZE, RAIL_BOTTOM));
         this.addChild(new Rail(0, 0, RAIL_SIZE, height, RAIL_LEFT));
-        this.addChild(new Rail(width-RAIL_SIZE, 0, RAIL_SIZE, height, RAIL_RIGHT));
+        this.addChild(new Rail(width - RAIL_SIZE, 0, RAIL_SIZE, height, RAIL_RIGHT));
 
         const POCKET_SIZE = 32;
         this.addChild(new Pocket('#2e2e2e', RAIL_SIZE, RAIL_SIZE, POCKET_SIZE));
@@ -532,8 +574,8 @@ class Game {
 
         this.emitter = new EventEmitter();
 
-        this.cueBall = new CueBall(width*0.25, height*0.5, 12, 0, 0, 0);
-        this.cue = new Cue(this.cueBall);
+        this.cueBall = new CueBall(width * 0.25, height * 0.5, 12, 0, 0, 0);
+        this.cue = new Cue(this.cueBall, this);
 
         this.rules = new GameType(this, this.emitter);
 
@@ -615,34 +657,24 @@ class Game {
             this.rules.tick();
         }
     }
-}
 
-function getRandomRange(min, max) {
-    return Math.random() * (max - min) + min;
-}
-/*
-function collisionSandbox(game) {
-    const locations = [];
-    for (let i = 0; i < 10; i++) {
-        const locX = getRandomRange(100, 900);
-        const locY = getRandomRange(100, 400);
-
-        if (locations.find(loc => calculateDistance(loc, { x: locX, y: locY }) <= 28)) {
-            i--;
-            continue;
+    getCollisions(child) {
+        const collisions = [];
+        for (let child2 of this.children) {
+            if (child === child2) {
+                continue;
+            }
+            if (child.isColliding) {
+                const collision = child.isColliding(child2);
+                if (collision) {
+                    collisions.push(collision);
+                }
+            }
         }
-
-        locations.push({ x: locX, y: locY });
-
-        const dirX = getRandomRange(-1, 1);
-        const dirY = getRandomRange(-1, 1);
-        const speed = getRandomRange(1, 6);
-
-        const ball = new Ball('#ffbf00', locX, locY, 14, dirX, dirY, speed);
-        game.addChild(ball);
+        return collisions;
     }
 }
-*/
+
 const modes = {
     pool: Pool,
     snooker: Snooker,
@@ -662,8 +694,6 @@ for (let item of list) {
         e.currentTarget.parentNode.parentNode.removeChild(e.currentTarget.parentNode);
 
         const game = new Game(canvas, 1000, 500, mode);
-
-        // collisionSandbox(game);
 
         game.startTicking();
     })
