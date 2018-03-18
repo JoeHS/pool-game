@@ -2,22 +2,26 @@ import { GameBall, CueBall } from './app';
 
 const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
+//stores hex values for colours
 const COLORS = {
     BLACK: '#000000',
     PINK: '#ff99ff',
     BLUE: '#0066ff',
     BROWN: '#663300',
     GREEN: '#006600',
-    YELLOW: '#ffcc00'
+    YELLOW: '#ffcc00',
+    RED: '#b30000'
 };
 
+//stores score values for snooker balls
 const SCORES = {
     [COLORS.BLACK]: 7,
     [COLORS.PINK]: 6,
     [COLORS.BLUE]: 5,
     [COLORS.BROWN]: 4,
     [COLORS.GREEN]: 3,
-    [COLORS.YELLOW]: 2
+    [COLORS.YELLOW]: 2,
+    [COLORS.RED]: 1
 };
 
 class SnookerPlayer {
@@ -31,7 +35,7 @@ class SnookerPlayer {
         if (this.playerNumber === PLAYER_ONE) {
             this.drawPlayerBar(ctx, 0);
             this.drawPlayerName(ctx, 16, 'left');
-            this.drawScore(ctx, 14, 1);
+            this.drawScore(ctx, 16, 1);
         } else {
             this.drawPlayerBar(ctx, 994);
             this.drawPlayerName(ctx, 984, 'right');
@@ -42,44 +46,25 @@ class SnookerPlayer {
     drawPlayerBar(ctx, x) {
         ctx.beginPath();
         if (this.game.players[this.game.currentPlayerIndex] !== this) {
+            //defaults to white if not active player
             ctx.beginPath();
             ctx.fillStyle = 'white';
             ctx.rect(x, -100, 6, 60);
             ctx.fill();
             ctx.closePath();
         } else {
-            if (this.game.onColors) {/*
-                ctx.beginPath();
-                ctx.fillStyle = '#ffcc00';
-                ctx.rect(x, -100, 6, 10);
-                ctx.fill();
-                ctx.fillStyle = '#006600';
-                ctx.rect(x, -90, 6, 10);
-                ctx.fill();
-                ctx.fillStyle = '#663300';
-                ctx.rect(x, -80, 6, 10);
-                ctx.fill();
-                ctx.fillStyle = '#0066ff';
-                ctx.rect(x, -70, 6, 10);
-                ctx.fill();
-                ctx.fillStyle = '#ff99ff';
-                ctx.rect(x, -60, 6, 10);
-                ctx.fill();
-                ctx.fillStyle = '#2e2e2e';
-                ctx.rect(x, -50, 6, 10);
-                ctx.fill();
-                ctx.closePath();*/
-
+            if (this.game.onColors) {
+                //draws coloured bar
                 for (let i = -50; i >=-100; i -=10) {
                     ctx.beginPath();
                     let color = null;
                     switch(i) {
-                        case -50: color = '#2e2e2e'; break;
-                        case -60: color = '#ff99ff'; break;
-                        case -70: color = '#0066ff'; break;
-                        case -80: color = '#663300'; break;
-                        case -90: color = '#006600'; break;
-                        case -100: color = '#ffcc00'; break;
+                        case -50: color = '#2e2e2e'; break; //use dark grey (background is black)
+                        case -60: color = COLORS.PINK; break;
+                        case -70: color = COLORS.BLUE; break;
+                        case -80: color = COLORS.BROWN; break;
+                        case -90: color = COLORS.GREEN; break;
+                        case -100: color = COLORS.YELLOW; break;
                         default: color = 'white';
                     }
                     ctx.fillStyle = color;
@@ -88,8 +73,9 @@ class SnookerPlayer {
                     ctx.closePath();
                 }
             } else {
+                //
                 ctx.beginPath();
-                ctx.fillStyle = '#b30000';
+                ctx.fillStyle = COLORS.RED;
                 ctx.rect(x, -100, 6, 60);
                 ctx.fill();
                 ctx.closePath();
@@ -113,7 +99,7 @@ class SnookerPlayer {
         ctx.fillStyle = 'white';
         ctx.font = '20px Helvetica';
         ctx.textAlign = alignment;
-        ctx.fillText(`${this.totalScore}`, x, -50);
+        ctx.fillText(`${this.totalScore} pts`, x, -50);
         ctx.closePath();
     }
 }
@@ -305,7 +291,9 @@ export default class Snooker {
             //legal, unknown if potted yet
         } else if (!this.onColors && this.redBalls.includes(ball)) {
             //legal, unknown if potted yet
-        } else {
+        } else if (this.onColors && this.redBalls.includes(ball)){
+            this.events.trigger('foul', SCORES[ball.color]);
+        } else if (!this.onColors && this.colouredBalls.includes(ball)){
             this.events.trigger('foul', SCORES[ball.color]);
         }
         this.hasHitBall = true;
