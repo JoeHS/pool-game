@@ -1,4 +1,6 @@
-import { GameBall} from './app';
+import { calculateDistance, GameBall } from './app';
+
+const getRandomRange = (min, max) => Math.random() * (max - min) + min;
 
 export default class Sandbox {
     constructor(game) {
@@ -28,11 +30,3 @@ export default class Sandbox {
         }
     }
 }
-
-function getRandomRange(min, max) {
-    return Math.random() * (max - min) + min;
-}
-
-const calculateDistance = (a, b) => Math.sqrt(
-    Math.pow((a.x - b.x), 2) + Math.pow((a.y - b.y), 2)
-);

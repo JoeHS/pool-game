@@ -2,7 +2,7 @@ import { GameBall, CueBall } from './app';
 
 const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
-const BALL_COLORS = ['#b30000', '#ffcc00'];
+export const BALL_COLORS = ['#b30000', '#ffcc00'];
 
 //stores properties of players
 class PoolPlayer {
