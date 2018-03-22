@@ -1,3 +1,4 @@
+//3rd party package dependency for the project
 import { checkIntersection } from 'line-intersect';
 
 import Pool from './Pool';
@@ -30,7 +31,7 @@ class EventEmitter {
         }
     }
 }
-
+//JS Canvas API allows for rendering elements on screen
 class Canvas {
     constructor(container) {
         const canvas = document.createElement('canvas');
@@ -164,13 +165,14 @@ const BALL_COLLIDE_ANY = 6;
 
 const CUE_COLLIDE = 7;
 
+//stores properties of pockets
 class Pocket {
     constructor(color, locationX, locationY, radius) {
         this.color = color;
         this.location = { x: locationX, y: locationY };
         this.radius = radius;
     }
-
+    //draws visual representation
     render(ctx) {
         ctx.beginPath();
         ctx.fillStyle = this.color;
@@ -180,6 +182,7 @@ class Pocket {
     }
 }
 
+//stores properties of balls needed for collision model and rendering, independent of game-play needs e.g. score
 class Ball {
     constructor(color, locationX, locationY, radius, directionX, directionY, speed) {
         this.color = color;
@@ -188,17 +191,19 @@ class Ball {
         this.direction = { x: directionX, y: directionY };
         this.speed = speed;
     }
-
+    //setter for initial or later positioning
     setLocation(x, y) {
         this.location = { x, y };
     }
-
+    //updates ball locations as game clock ticks
     update() {
+        //speeds up the natural slowdown of objects (to reduce frustration!) – game-play in mind
         if (this.speed < 0.3) {
             this.speed = 0;
             this.direction.x = 0;
             this.direction.y = 0;
         }
+        //simulates friction with table/cloth
         else {
             this.speed *= 0.985;
         }
@@ -206,16 +211,20 @@ class Ball {
         this.location.y += this.speed * this.direction.y;
     }
 
+    //determine if collision has occurred between a ball and...
     isColliding(child) {
+        //...a pocket
         if (child instanceof Pocket) {
-            // @todo Optimisation
             const distance = calculateDistance(child.location, this.location);
 
+            //allows overhang, simulates realism
             if (distance <= child.radius) {
                 return [POCKET_COLLIDE_ANY];
             }
         }
+        //...a rail
         else if (child instanceof Rail) {
+            //I use simplified straight line geometry, which simplifies this part
             const rightHandSide = this.location.x + this.radius;
             const leftHandSide = this.location.x - this.radius;
             const upperSide = this.location.y + this.radius;
@@ -247,6 +256,7 @@ class Ball {
                     break;
             }
         }
+        //...another ball
         else if (child instanceof Ball) {
             const centre = this.location;
             const otherCentre = child.location;
@@ -259,10 +269,11 @@ class Ball {
         }
     }
 
+    //actions to take if collision has occurred...
     collisionResponse(game, child, collisionType, data) {
         if (child instanceof Rail) {
             this.speed *= 0.7;
-
+            //simple reelection for collisions with flat surfaces, 'treat ball as square'
             switch (collisionType) {
                 case RAIL_COLLIDE_RIGHT:
                     this.direction.x *= -1;
@@ -287,25 +298,25 @@ class Ball {
 
         }
         else if (child instanceof Pocket) {
-
+            //announce event for interpretation by rules model
             game.emitter.trigger('pocket', this);
 
             this.speed = 0;
             this.direction.x = 0;
             this.direction.y = 0;
 
-            //element has to be removed, not moved off-screen as this registers as a collision with the rails
+            //whether this is permanent is handled by specific game rules
             this.onPocket(game);
         }
 
         else if (child instanceof Ball) {
-
+            //announce event for interpretation by rules model
             game.emitter.trigger('collide', this, child);
 
             switch (collisionType) {
                 case BALL_COLLIDE_ANY:
-                    //OLD REF: https://gamedevelopment.tutsplus.com/tutorials/when-worlds-collide-simulating-circle-circle-collisions--gamedev-769
-                    //NEW REF: https://channel9.msdn.com/Series/Sketchbooktutorial/Simple-Collision-Detection-and-Response
+                    //determines speed and direction of balls after a collision
+                    //will discuss sources in report
                     this.location.x += this.speed * -this.direction.x;
                     this.location.y += this.speed * -this.direction.y;
                     const dist = calculateDistance(this.location, child.location);
@@ -324,6 +335,7 @@ class Ball {
                     child.direction.x += dvx;
                     child.direction.y += dvy;
 
+                    //store values to prevent overwrite
                     const childSpeed = child.speed;
                     const thisSpeed = this.speed;
 
@@ -388,7 +400,7 @@ export class CueBall extends Ball {
     }
 
 }
-
+//always needed, so owned by game class
 class Cue {
     constructor(cueBall, game) {
         this.cueBall = cueBall;
@@ -399,6 +411,7 @@ class Cue {
         this.game = game;
     }
 
+    //used by rules classes
     setActive() {
         this.active = true;
     }
@@ -411,14 +424,15 @@ class Cue {
     render(ctx) {
         ctx.beginPath();
 
-        // REF https://gist.github.com/conorbuck/2606166
-        // REF https://stackoverflow.com/questions/23598547/draw-a-line-from-x-y-with-a-given-angle-and-length
+        //REF https://gist.github.com/conorbuck/2606166
+        //REF https://stackoverflow.com/questions/23598547/draw-a-line-from-x-y-with-a-given-angle-and-length
         //cue itself
         ctx.moveTo(this.cueBall.location.x, this.cueBall.location.y);
         ctx.lineTo(
             this.cueBall.location.x + this.length * this.direction.x,
             this.cueBall.location.y + this.length * this.direction.y
         );
+        //colour change indicates strength
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 8;
         ctx.stroke();
@@ -426,19 +440,19 @@ class Cue {
 
         this.renderGuide(ctx);
     }
-
+    //tracks cursor movement
     mouseMove(x, y) {
         this.x = x;
         this.y = y;
         this.setDirection();
         this.calculateColor(x, y);
     }
-
+    //chooses along white to red gradient
     calculateColor(x, y) {
         const brightness = 255 - Math.floor(255 * Math.min(1, this.calculateStrength(x, y)));
         this.color = `rgb(255, ${brightness}, ${brightness})`;
     }
-
+    //display cue when clicking/holding down
     mouseDown(x, y) {
         if (this.isActive()) {
             this.show = true;
@@ -461,7 +475,7 @@ class Cue {
             y: Math.sin(theta)
         };
     }
-
+    //apply effects to cue ball on mouse button release
     mouseUp(x, y) {
         if (this.isActive() && this.show) {
             this.show = false;
@@ -500,13 +514,13 @@ class Cue {
         ctx.setLineDash([]);
 
     }
-
+    //uses third party package, removes need to invoke full collision logic here
     isColliding(child) {
         if (this.show) {
             const destination = this.getGuideDestination();
             const location = { ...this.cueBall.location };
 
-
+            //cuts off the dotted line at the inner boundaries of the rails
             if (child instanceof Rail) {
                 const line = [location.x, location.y, destination.x, destination.y];
                 let collisionLine;
@@ -524,6 +538,7 @@ class Cue {
                         collisionLine = [child.x, child.y, child.x, child.y + child.height];
                         break;
                 }
+
                 const intersection = checkIntersection(...line, ...collisionLine);
                 if (intersection.type === 'intersecting') {
                     return [CUE_COLLIDE, intersection.point];
@@ -532,7 +547,7 @@ class Cue {
 
         }
     }
-
+    //max endpoint of aiming guide
     getGuideDestination() {
         return {
             x: this.cueBall.location.x + this.length * 3 * -this.direction.x,
@@ -540,7 +555,7 @@ class Cue {
         };
     }
 }
-
+//sets up objects and events needed for all supported games
 class Game {
     constructor(canvas, width, height, GameType) {
         this.width = width;
@@ -657,7 +672,7 @@ class Game {
             this.rules.tick();
         }
     }
-
+    //ignores collisions of objects with themselves
     getCollisions(child) {
         const collisions = [];
         for (let child2 of this.children) {
@@ -679,11 +694,10 @@ const modes = {
     pool: Pool,
     snooker: Snooker,
     sandbox: Sandbox,
-    demopool: DemoPool,
-    demosnooker1: DemoSnooker1,
-    demosnooker2: DemoSnooker2
+    demopool: DemoPool
 };
 
+//allows game mode selection
 const canvas = new Canvas(document.querySelector('#game'));
 const list = Array.from(document.querySelectorAll('#menu li'));
 
